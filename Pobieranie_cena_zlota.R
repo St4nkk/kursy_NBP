@@ -24,7 +24,7 @@ get_gold_data_from_NBP <- function(start_date, last_date){
   # Utworzenie pustej ramki danych dla cen złota
   gold_price <- data.frame(
     date = character(0),   # Kolumna 'date' 
-    price = numeric(0)      # Kolumna 'price'  
+    rate = numeric(0)      # Kolumna 'price'  
   )
   
   while (start_date <= last_date){
@@ -47,7 +47,7 @@ get_gold_data_from_NBP <- function(start_date, last_date){
     }
     
     #utworzenie obiektu typu data frame z zagnieżdżonej listy data
-    new_data  <- do.call(rbind, lapply(data, function(x) data.frame(date = x$data, price = x$cena)))
+    new_data  <- do.call(rbind, lapply(data, function(x) data.frame(date = x$data, rate = x$cena)))
     
     # Dodanie nowych danych z zapytania 
     gold_price <- rbind(gold_price, new_data)

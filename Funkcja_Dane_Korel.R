@@ -29,14 +29,11 @@ Dane <- function(d1, d2, id){
   }
 }
 
-dane_EUR <- Dane("2005-01-01", "2010-01-01", "EUR")
-plot(dane_EUR)
 
-dane_zloto <- Dane("2015-01-01", "2024-01-01", "gold")
-plot(dane_zloto)
+#dane_EUR <- Dane("2005-01-01", "2010-01-01", "EUR")
 
-exchange_rates_df <- import("data/exchange_rates.csv")
-codes <- exchange_rates_df %>% distinct(currency_code)
+#exchange_rates_df <- import("data/exchange_rates.csv")
+#codes <- exchange_rates_df %>% distinct(currency_code)
 
 #' Zwraca wartość korelacji dwóch szeregów id1 oraz id2 pomiędzy datami d1 i d2 oóżnionymi odpowiednio o lag1 i lag2
 #'
@@ -61,6 +58,9 @@ Korel <- function(d1, d2, id1, id2, lag1, lag2) {
   d2 <- as.Date(d2)
   x <- Dane(d1-lag1, d2-lag1, id1)[, 2]
   y <- Dane(d1-lag2, d2-lag2, id2)[, 2]
+  min_length <- min(length(x), length(y))
+  x <- x[1:min_length]
+  y <- y[1:min_length]
   korelacja <- cor(x, y, method = "pearson")
   return(korelacja)
 }
@@ -70,4 +70,6 @@ test_Korel <- function(d1, d2, id1, id2, lag1, lag2){
   return(korel)
 }
 
-test_Korel("2005-01-01", "2008-01-01", "EUR", "EUR", 0, 0)
+#test_Korel("2005-01-01", "2008-01-01", "EUR", "EUR", 0, 0)
+
+
