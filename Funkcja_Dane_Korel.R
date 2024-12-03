@@ -1,5 +1,5 @@
 pacman::p_load(dplyr, rio)
-#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2
+#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2 z opóżnieniem lag
 #'
 #' id może przyjmować jedną z wartości:  
 #' "gold" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
@@ -9,28 +9,46 @@ pacman::p_load(dplyr, rio)
 #' @param d1 początkowa data YYYY-MM-DD
 #' @param d2 końcowa data YYYY-MM-DD
 #' @param id kod wlauty lub złota
-#' @return ramka danych 
+#' @param lag_ opóżnienie, liczba dni roboczych (domyślnie 0)
+#' @return ramka danych (2 kolumny: date i rate)
 #' @examples
-#' Dane("2005-01-01", "2010-01-01", "EUR")
-#' Dane("2015-01-01", "2024-01-01", "gold")
+#' Dane("2020-01-01", "2020-01-10", "gold")
+#' Dane("2020-01-01", "2020-01-10", "EUR", 2)
  
 #Funkcja Dane zwraca ciąg wartości i dat szeregu id pomiędzy datami d1, d2 
-Dane <- function(d1, d2, id){
+Dane <- function(d1, d2, id, lag_=0){
   if (id == "gold"){
-    gold_price_df <- import("data/gold_price.csv")
-    gold_price <- gold_price_df %>% filter(date >= d1 & date <= d2)
+    df <- import("data/gold_price.csv") %>% 
+      arrange(date) %>% 
+      mutate(rate_lag = lag(rate, n = lag_))
+
+    gold_price <- df %>% 
+      filter(date >= d1 & date <= d2) %>% 
+      select(date, rate_lag) %>% 
+      rename(rate = rate_lag)
+    
     return(gold_price)
   } else {
-    exchange_rates_df <- import("data/exchange_rates.csv")
+    df <- import("data/exchange_rates.csv")
     
-      if (any(exchange_rates_df$currency_code == id)) {
-        exchange_rates <- exchange_rates_df %>% filter(date >= d1 & date <= d2 & currency_code == id) %>% select(date, rate)
+      if (any(df$currency_code == id)) {
+        exchange_rates <- df %>% 
+          filter(currency_code == id) %>%
+          arrange(date) %>%
+          mutate(rate_lag = lag(rate, n = lag_)) %>%
+          filter(date >= d1 & date <= d2) %>% 
+          select(date, rate_lag) %>% 
+          rename(rate = rate_lag)
+        
         return(exchange_rates)}
   }
 }
 
+dale_gold <- Dane("2020-01-01", "2020-01-10", "gold")
+dane_gold_2 <- Dane("2020-01-01", "2020-01-10", "gold", 2)
 
-#dane_EUR <- Dane("2005-01-01", "2010-01-01", "EUR")
+dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
+dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR", 2)
 
 #exchange_rates_df <- import("data/exchange_rates.csv")
 #codes <- exchange_rates_df %>% distinct(currency_code)
@@ -54,13 +72,16 @@ Dane <- function(d1, d2, id){
 #' Korel("2015-03-01", "2016-03-01", "gold", "EUR", 30, 0)
 
 Korel <- function(d1, d2, id1, id2, lag1, lag2) {
-  d1 <- as.Date(d1)
-  d2 <- as.Date(d2)
-  x <- Dane(d1-lag1, d2-lag1, id1)[, 2]
-  y <- Dane(d1-lag2, d2-lag2, id2)[, 2]
-  min_length <- min(length(x), length(y))
-  x <- x[1:min_length]
-  y <- y[1:min_length]
+
+  x <- Dane(d1, d2, id1, lag1) %>% select(rate)
+  y <- Dane(d1, d2, id2, lag2) %>% select(rate)
+  
+  if (length(x) != length(y)){
+    min_length <- min(length(x), length(y))
+    x <- x[1:min_length]
+    y <- y[1:min_length]
+  }
+  
   korelacja <- cor(x, y, method = "pearson")
   return(korelacja)
 }

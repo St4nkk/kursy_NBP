@@ -2,10 +2,9 @@ pacman::p_load(ggplot2)
 source("Funkcja_Dane_Korel.R")
 
 
-new_plot <- function(d1, d2, id, lag) {
-  d1 <- as.Date(d1)
-  d2 <- as.Date(d2)
-  df <- Dane(d1-lag,d2-lag,id)
+new_plot <- function(d1, d2, id, lag = 0) {
+
+  df <- Dane(d1, d2, id, lag)
   df <- mutate(df, code = id)
   
   p <- ggplot(df, aes(x=date, y=rate, color = code)) + 
@@ -17,10 +16,9 @@ new_plot <- function(d1, d2, id, lag) {
   return(p) 
 }
 
-add_to_plot <- function(p, d1, d2, id, lag) {
-  d1 <- as.Date(d1)
-  d2 <- as.Date(d2)
-  df <- Dane(d1-lag,d2-lag,id)
+add_to_plot <- function(p, d1, d2, id, lag = 0) {
+
+  df <- Dane(d1, d2, id, lag)
   df <- mutate(df, code = id)
   
   p <- p + geom_line(data=df)
@@ -28,7 +26,10 @@ add_to_plot <- function(p, d1, d2, id, lag) {
   return(p)
 }
 
-np <- new_plot("2010-01-01", "2010-03-01", "EUR", 0)
+d1 <- "2010-01-01"
+d2 <- "2010-03-01"
+  
+np <- new_plot(d1, d2, "EUR")
 plot(np)
-p <- add_to_plot(np, "2010-01-01", "2010-03-01", "USD", 30)
+p <- add_to_plot(np, d1, d2, "USD", 30)
 plot(p)
