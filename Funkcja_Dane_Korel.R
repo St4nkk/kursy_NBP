@@ -1,5 +1,5 @@
 pacman::p_load(dplyr, rio)
-#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2 z opóżnieniem lag
+#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2 z opóżnieniem lub przyspieszeniem
 #'
 #' id może przyjmować jedną z wartości:  
 #' "gold" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
@@ -9,46 +9,64 @@ pacman::p_load(dplyr, rio)
 #' @param d1 początkowa data YYYY-MM-DD
 #' @param d2 końcowa data YYYY-MM-DD
 #' @param id kod wlauty lub złota
-#' @param lag_ opóżnienie, liczba dni roboczych (domyślnie 0)
+#' @param mode opóżnienie - "lag", przyspieszenie - "lead" (domyślnie NULL)
+#' @param n liczba dni roboczych przesunięcia (domyślnie 0)
 #' @return ramka danych (2 kolumny: date i rate)
 #' @examples
 #' Dane("2020-01-01", "2020-01-10", "gold")
-#' Dane("2020-01-01", "2020-01-10", "EUR", 2)
+#' Dane("2020-01-01", "2020-01-10", "gold", "lead", 2)
+#' Dane("2018-01-01", "2020-01-10", "EUR","lag", 30)
  
 #Funkcja Dane zwraca ciąg wartości i dat szeregu id pomiędzy datami d1, d2 
-Dane <- function(d1, d2, id, lag_=0){
+Dane <- function(d1, d2, id, mode = NULL, n = 0){
   if (id == "gold"){
     df <- import("data/gold_price.csv") %>% 
-      arrange(date) %>% 
-      mutate(rate_lag = lag(rate, n = lag_))
+      arrange(date)
+    
+    if (is.null(mode)) {
+      NULL
+    } else if (mode == "lag"){
+      df <- mutate(df, rate = lag(rate, n = n))
+    } else if (mode == "lead"){
+      df <- mutate(df, rate = lead(rate, n = n))
+    } 
 
     gold_price <- df %>% 
-      filter(date >= d1 & date <= d2) %>% 
-      select(date, rate_lag) %>% 
-      rename(rate = rate_lag)
+      filter(date >= d1 & date <= d2) 
+      
     
     return(gold_price)
   } else {
     df <- import("data/exchange_rates.csv")
     
       if (any(df$currency_code == id)) {
-        exchange_rates <- df %>% 
+        df <- df %>% 
           filter(currency_code == id) %>%
-          arrange(date) %>%
-          mutate(rate_lag = lag(rate, n = lag_)) %>%
-          filter(date >= d1 & date <= d2) %>% 
-          select(date, rate_lag) %>% 
-          rename(rate = rate_lag)
+          arrange(date) 
         
-        return(exchange_rates)}
+        if (is.null(mode)) {
+          NULL
+        } else if (mode == "lag"){
+          df <- mutate(df, rate = lag(rate, n = n))
+        } else if (mode == "lead"){
+          df <- mutate(df, rate = lead(rate, n = n))
+        }
+        
+        exchange_rates <- df %>% 
+          filter(date >= d1 & date <= d2) 
+
+        return(exchange_rates)
+      }
+    return(NULL)
   }
 }
 
-dale_gold <- Dane("2020-01-01", "2020-01-10", "gold")
-dane_gold_2 <- Dane("2020-01-01", "2020-01-10", "gold", 2)
+dane_gold <- Dane("2020-01-01", "2020-01-10", "gold")
+dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold", "lag", 2)
+dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "gold", "lead", 2)
 
 dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
-dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR", 2)
+dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 
 #exchange_rates_df <- import("data/exchange_rates.csv")
 #codes <- exchange_rates_df %>% distinct(currency_code)
