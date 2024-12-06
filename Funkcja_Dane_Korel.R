@@ -1,15 +1,17 @@
 pacman::p_load(dplyr, rio, rlang)
-#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2 z opóżnieniem lub przyspieszeniem
+#' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2.
+#' Możliwe jest dodanie opóżnienienia lub przyspieszenia o zadaną wartość.
 #'
-#' id może przyjmować jedną z wartości:  
-#' "gold_" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
-#' "USD" "CHF" "SEK" "HUF" "GBP" "ITL" "XDR" "CYP" "HKD" "LTL" "LVL" "MTL" "ZAR" "RUB" "SKK" "SIT" "UAH" "BGN"
-#' "RON" "THB" "NZD" "SGD" "ISK" "HRK" "TRY" "PHP" "MXN" "BRL" "MYR" "IDR" "KRW" "CNY" "ILS" "INR" "CLP"
 #' 
 #' @param d1 początkowa data YYYY-MM-DD
 #' @param d2 końcowa data YYYY-MM-DD
-#' @param id kod wlauty lub złota
-#' @param mode opóżnienie - "lag", przyspieszenie - "lead" (domyślnie NULL)
+#' @param id kod wlauty lub złota, może przyjmować jedną z wartości:
+#' "gold_" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
+#' "USD" "CHF" "SEK" "HUF" "GBP" "ITL" "XDR" "CYP" "HKD" "LTL" "LVL" "MTL" "ZAR" "RUB" "SKK" "SIT" "UAH" "BGN"
+#' "RON" "THB" "NZD" "SGD" "ISK" "HRK" "TRY" "PHP" "MXN" "BRL" "MYR" "IDR" "KRW" "CNY" "ILS" "INR" "CLP"
+#' @param mode "normal" - bez przesunięcia (domyślnie)
+#'             "lag" - opóżnienie, 
+#'             "lead" - przyspieszenie 
 #' @param n liczba dni roboczych przesunięcia (domyślnie 0)
 #' @return ramka danych (2 kolumny: date i rate)
 #' @examples
@@ -18,13 +20,29 @@ pacman::p_load(dplyr, rio, rlang)
 #' Dane("2018-01-01", "2020-01-10", "EUR","lag", 30)
  
 #Funkcja Dane zwraca ciąg wartości i dat szeregu id pomiędzy datami d1, d2 
-Dane <- function(d1, d2, id, mode = NULL, n = 0){
+Dane <- function(d1, d2, id, mode = "normal", n = 0){
   
-  df <- import("data/gold_and_exchange_rates.csv") %>%
-        select(date, id) %>%
+  if (!(mode %in% c("normal", "lag", "lead"))) {
+    print("Nieprawidłowa wartość parametru mode. Dostępne: lag, lead lub normal (domyślny)")
+    return()
+  } 
+  
+  df <- import("data/gold_and_exchange_rates.csv") 
+
+  if (!(id %in% colnames(df)[-1])){
+    print(paste("Nie udało się odczytać danych z bazy. Niepoprawne id:", id))
+    return()
+  }
+  
+  if (n < 0) {
+    print("Wartość parametru n musi być nieujemna.")
+    return()
+  }
+  
+  df <- df %>% select(date, !!sym(id)) %>%
         arrange(date)
     
-  if (is.null(mode)) {
+  if (mode == "normal") {
     NULL
   } else if (mode == "lag"){
     df <- mutate(df, !!paste0(id, "_lag_", n) := lag(!!sym(id), n = n))
@@ -33,14 +51,15 @@ Dane <- function(d1, d2, id, mode = NULL, n = 0){
   } 
 
   df <- df %>% 
-    filter(date >= d1 & date <= d2) %>%
-    select(1, ncol(df))
-      
+    filter(date >= d1 & date <= d2 & !is.na(!!sym(id))) %>%
+    select(1, ncol(df))  #wybierz kolumnę pierwszą (data) i ostatnią (zwykły, opóźniony lub przyspieszony wektor) 
+  
   return(df)
 }
 
-dane_gold <- Dane("2020-01-01", "2020-01-10", "gold_")
-dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lag", 2)
+dane_gold <- Dane("2020-01-01", "2019-01-10", "data")
+dane_gold <- Dane("2000-01-01", "2022-01-10", "gold_")
+dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lag", -2)
 dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
 
 dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
@@ -69,8 +88,8 @@ dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 
 correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
 
-  x <- Dane(d1, d2, id1, mode="lag", lag1) %>% select(2) %>% pull()
-  y <- Dane(d1, d2, id2, mode="lag", lag2) %>% select(2) %>% pull()
+  x <- Dane(d1, d2, id1, mode="lag", lag1) %>% pull(2)
+  y <- Dane(d1, d2, id2, mode="lag", lag2) %>% pull(2)
 
   if (length(x) != length(y)){
     min_length <- min(length(x), length(y))
@@ -78,7 +97,7 @@ correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
     y <- y[1:min_length]
   }
   
-  korelacja <- cor(x, y, use = "all.obs", method = "pearson")
+  korelacja <- cor(x, y, method = "pearson")
   return(korelacja)
 }
 
@@ -89,8 +108,9 @@ test_correl <- function(){
   print(korel)  
   korel <- correl("2002-06-01", "2008-08-01", "USD", "gold_")
   print(korel)
+  korel <- correl("2002-06-01", "2008-08-01", "USD", "gold_1")
+  print(korel)
 }
-
+dane_gold <- Dane("2000-01-01", "2002-01-10", "gold_")
 test_correl()
-
 

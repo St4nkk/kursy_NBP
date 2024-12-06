@@ -1,14 +1,14 @@
-pacman::p_load(ggplot2,dplyr,e1071, zoo)
+pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2)
 source("Funkcja_Dane_Korel.R")
 
 
-new_plot <- function(df) {
+new_plot <- function(df, title="Kurs średni", x_label="data", y_label="kurs") {
 
   df <- mutate(df, label = colnames(df)[2])
   colnames(df)[2] <- "rate"
   p <- ggplot(df, aes(x=date, y=rate, color = label)) + 
     geom_line() + 
-    labs(title="Kurs średni", x="data", y="kurs", color = "Waluta") +
+    labs(title=title, x=x_label, y=y_label, color = "Szereg") +
     theme_bw() +
     theme(plot.title = element_text(hjust = 0.5)) 
 
@@ -111,16 +111,16 @@ rolling_correl <- function(d1, d2, id1, id2, window_size){
   df <- import("data/gold_and_exchange_rates.csv") %>%
     select(date, id1, id2) %>%
     arrange(date)
-  
+  print(head(df))
   idx_d1 <- which(df$date >= d1) %>% min() # rzeczywista data poczatkawa wykresu
   idx_d2 <- which(df$date <= d2) %>% max() 
   idx_d0 <- idx_d1 - window_size + 1 # pierwsza data potrzebna do wyznaczenia korelacji dla d1
-  print(idx_d0)
-  df_cor <- df %>% 
-    slice(idx_d0:idx_d2) %>% 
-    select(date, id1, id2) %>%
-    mutate(correlation = rollapply(
-      data = df_cor[, c(id1, id2)], 
+
+  df <- df %>% 
+    slice(idx_d0:idx_d2) 
+  
+  df_cor <- mutate(df, correlation := rollapply(
+      data = df[, c(id1, id2)], 
       width = window_size, 
       FUN = function(z) cor(z[, 1], z[, 2]), 
       by.column = FALSE, 
@@ -128,12 +128,51 @@ rolling_correl <- function(d1, d2, id1, id2, window_size){
       fill = NA)) %>%
     filter(date > d1 & date < d2) %>%
     select(date, correlation)
-  
+  colnames(df_cor)[2] <- paste0(id1,"-", id2)
   return(df_cor)
 }
 
 c <- rolling_correl("2010-01-01", "2010-03-01", "EUR", "USD", 30)
+c2 <- rolling_correl("2010-01-01", "2010-03-01", "gold_", "EUR", 30)
 
-plot(c)
-
+p <- new_plot(c, title="Korelacja krocząca z 30 dni", y_label="wsp. korelacji" )
+add_to_plot(p, c2)
   
+#'Tworzy wykres gragu
+#'
+#'
+
+graph_correlation <- function(d1, d2, ids, treshold){
+  df <- import("data/gold_and_exchange_rates.csv")
+
+  df <- df[ ,c("date", ids)] %>%
+    filter(date > d1 & date < d2)
+  
+  cor_matrix <- cor(df[, ids], use = "complete.obs")
+  diag(cor_matrix) <- NA
+  print(cor_matrix)
+  #cor_matrix <- cor_matrix[!is.na(cor_matrix)]
+  
+  
+  #print(cor_matrix)
+  cor_matrix_long <- melt(cor_matrix) %>% filter(value > treshold)
+  print(head(cor_matrix_long))
+  
+  g <- graph_from_data_frame(cor_matrix_long, directed = FALSE)
+  E(g)$weight <- abs(E(g)$value)  # Grubość krawędzi będzie odpowiadała wartości korelacji
+  
+  plot(g, 
+       edge.width = E(g)$weight * 10,  # Skalowanie grubości krawędzi
+       vertex.size = 30,  # Rozmiar wierzchołków
+       vertex.label.cex = 1,  # Rozmiar etykiet wierzchołków
+       vertex.color = "skyblue",  # Kolor wierzchołków
+       main = "Graf korelacji między szeregami czasowymi"
+  )  
+}
+
+graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"), 0.5)
+
+d =  "date"
+id = c("a", "b")
+x = c(d, id)
+x
