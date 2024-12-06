@@ -2,7 +2,7 @@
 #Następnie dane w formacie: (data, kod waluty, kurs) są zapisywane do pliku csv
 
 # Załadowanie pakietów
-pacman::p_load(httr, rio)
+pacman::p_load(httr, rio, tidyr)
 
 get_exchange_data_from_NBP <- function(start_date, last_date){
 
@@ -55,19 +55,24 @@ get_exchange_data_from_NBP <- function(start_date, last_date){
                    rate = x$mid)
       }))
     }))
-    # Dodanie nowych danych z zapytania 
+     # Dodanie nowych danych z zapytania 
     exchange_rates <- rbind(exchange_rates, new_data)
-  
+
     start_date <- end_date + 1
 
   }
+  exchange_rates <- unique(exchange_rates) %>%
+           pivot_wider(names_from = currency_code, 
+                                values_from = rate)
   return(exchange_rates)
 }
 
-start_date <- as.Date("2002-01-02")       #data początkowa zapytania wartość ze strony https://api.nbp.pl/
-last_date <- Sys.Date()                   #ostatnia data całego zapytania
+exchange_download_and_save <- function(){
+  start_date <- as.Date("2002-01-02")       #data początkowa zapytania wartość ze strony https://api.nbp.pl/
+  last_date <- Sys.Date()                   #ostatnia data całego zapytania
 
-exchange_rates <- get_exchange_data_from_NBP(start_date, last_date)
+  exchange_rates <- get_exchange_data_from_NBP(start_date, last_date)
 
-#zapis do pliku csv 
-export(exchange_rates, "data/exchange_rates.csv")
+  #zapis do pliku csv 
+  export(exchange_rates, "data/exchange_rates.csv")
+}
