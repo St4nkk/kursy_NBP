@@ -13,7 +13,7 @@ pacman::p_load(dplyr, rio, rlang)
 #'             "lag" - opóżnienie, 
 #'             "lead" - przyspieszenie 
 #' @param n liczba dni roboczych przesunięcia (domyślnie 0)
-#' @return ramka danych (2 kolumny: date i rate)
+#' @return ramka danych (2 kolumny okeślające datę i wartości szeregu)
 #' @examples
 #' Dane("2020-01-01", "2020-01-10", "gold_")
 #' Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
@@ -53,17 +53,22 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
   df <- df %>% 
     filter(date >= d1 & date <= d2 & !is.na(!!sym(id))) %>%
     select(1, ncol(df))  #wybierz kolumnę pierwszą (data) i ostatnią (zwykły, opóźniony lub przyspieszony wektor) 
-  
+  if (nrow(df) == 0 ){
+    df = NULL
+  }
   return(df)
 }
 
-dane_gold <- Dane("2020-01-01", "2019-01-10", "data")
-dane_gold <- Dane("2000-01-01", "2022-01-10", "gold_")
-dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lag", -2)
-dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
+test_Dane <- function() {
+  dane_gold <- Dane("2020-01-01", "2019-01-10", "data")
+  dane_gold <- Dane("2000-01-01", "2002-01-10", "gold_")
+  dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lag", -2)
+  dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
+  
+  dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
+  dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
+}
 
-dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
-dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 
 #exchange_rates_df <- import("data/exchange_rates.csv")
 #codes <- exchange_rates_df %>% distinct(currency_code)
@@ -87,14 +92,26 @@ dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 #' correl("2015-03-01", "2016-03-01", "gold_", "EUR", 30, 0)
 
 correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
+  
+  x <- Dane(d1, d2, id1, mode="lag", lag1) 
+  y <- Dane(d1, d2, id2, mode="lag", lag2) 
 
-  x <- Dane(d1, d2, id1, mode="lag", lag1) %>% pull(2)
-  y <- Dane(d1, d2, id2, mode="lag", lag2) %>% pull(2)
-
+  if (is.null(x)){
+    print(paste("Wektor", id1, "ma wartość NULL"))
+    return()
+  } 
+  if (is.null(y)) {
+    print(paste("Wektor", id2, "ma wartość NULL"))
+    return()
+  }
+  x <- x %>% pull(2)
+  y <- y %>% pull(2)
+  
   if (length(x) != length(y)){
     min_length <- min(length(x), length(y))
     x <- x[1:min_length]
     y <- y[1:min_length]
+    print(paste0("Wektory są różnej długości! Dokonano zrównania do krótszego wektora (len = ", min_length, ")"))
   }
   
   korelacja <- cor(x, y, method = "pearson")
@@ -102,15 +119,18 @@ correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
 }
 
 test_correl <- function(){
-  korel <- correl("2005-01-01", "2008-01-01", "EUR", "EUR")
+  korel <- correl("2005-01-01", "2008-01-01", "EUR", "EURO")
   print(korel)
+  print("---------------------------------------")
   korel <- correl("2005-01-01", "2008-01-01", "EUR", "USD")
-  print(korel)  
+  print(korel)
+  print("---------------------------------------")
   korel <- correl("2002-06-01", "2008-08-01", "USD", "gold_")
   print(korel)
-  korel <- correl("2002-06-01", "2008-08-01", "USD", "gold_1")
+  print("---------------------------------------")
+  korel <- correl("2002-06-01", "2008-06-01", "USD", "gold_1")
   print(korel)
 }
-dane_gold <- Dane("2000-01-01", "2002-01-10", "gold_")
-test_correl()
+
+#test_correl()
 

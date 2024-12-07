@@ -1,8 +1,21 @@
-pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2)
+pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2, viridis)
 source("Funkcja_Dane_Korel.R")
 
+#' Tworzy i zwraca nowy obiekt gg zawierający liniowy wykres ramki danych o 2 kolumnach
+#' 
+#' @param df ramka danych 2 kolumny (w pierwszaj daty, w drugiej wartości)
+#' @param title tytuł wykresu (domyśnie: "Kurs średni")
+#' @param X_label etykieta osi x (domyślnie: "data")
+#' @param y_label etykieta osi y (domyślnie: "cena w PLN"
+#' 
+#' @return obiekt gg z wykresem
+#' @example 
+#' data1 = Dane("2010-01-01", "2010-03-01", "EUR")
+#' np <- new_plot(data1)
+#' plot(np)
 
-new_plot <- function(df, title="Kurs średni", x_label="data", y_label="kurs") {
+#
+new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w PLN") {
 
   df <- mutate(df, label = colnames(df)[2])
   colnames(df)[2] <- "rate"
@@ -14,6 +27,19 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="kurs") {
 
   return(p) 
 }
+
+#' Dodaje nowy wykres do istniejącego 
+#' 
+#' @param p obiekt gg, istniejący wykres
+#' @param df ramka danych 2 kolumny (w pierwszaj daty, w drugiej wartości)
+#' 
+#' @return obiekt gg z dodanym wykresem
+#' @example 
+#' np <- new_plot(data1)
+#' data2 = Dane("2010-01-01", "2010-03-01", "USD", "lag", 30)
+#' p <- add_to_plot(np, data2)
+#' plot(p)
+#' 
 
 add_to_plot <- function(p, df) {
 
@@ -37,7 +63,7 @@ data3 = Dane(d1, d2, "AUD", "lag", 30)
 p <- add_to_plot(p, data3)
 plot(p)
 
-#' Tworzy obiekt ggplot wyznaczający histogram danych
+#' Tworzy obiekt gg wyznaczający histogram danych
 #' 
 #' @param df ramka danych zawierająca kolumnę rate
 #' 
@@ -142,37 +168,57 @@ add_to_plot(p, c2)
 #'
 #'
 
-graph_correlation <- function(d1, d2, ids, treshold){
+graph_correlation <- function(d1, d2, ids){
   df <- import("data/gold_and_exchange_rates.csv")
 
   df <- df[ ,c("date", ids)] %>%
     filter(date > d1 & date < d2)
   
-  cor_matrix <- cor(df[, ids], use = "complete.obs")
-  diag(cor_matrix) <- NA
-  print(cor_matrix)
-  #cor_matrix <- cor_matrix[!is.na(cor_matrix)]
+  cor_matrix <- cor(df[, ids], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych
+
+  diag(cor_matrix) <- NA #Wartości na diagonali są równe 1 - nie są przydatne do wykresu
+  cor_matrix[lower.tri(cor_matrix)] <- NA #wartości poniżej diagonali są takie same jak powyżej diagonali - są nadmiarowe
+  cor_long <- melt(cor_matrix) # przekształcenie do formatu długiego
+  cor_long <- cor_long[!is.na(cor_long[, 3]), ] #usunięcie wierszy o wartości NA
+
+  g <- graph_from_data_frame(cor_long, directed = FALSE)
   
-  
-  #print(cor_matrix)
-  cor_matrix_long <- melt(cor_matrix) %>% filter(value > treshold)
-  print(head(cor_matrix_long))
-  
-  g <- graph_from_data_frame(cor_matrix_long, directed = FALSE)
   E(g)$weight <- abs(E(g)$value)  # Grubość krawędzi będzie odpowiadała wartości korelacji
+
+  # Stworzenie palety viridis
+  colors <- turbo(100)
+  # Mapowanie wag na kolory
+  edge_colors <- colors[as.numeric(cut(c(E(g)$value, 1,-1), breaks = 100))]
   
+  
+  par(mfcol = c(1, 2), mar = c(1, 1, 1, 2))
+  layout(matrix(c(1, 2), 1, 2, byrow = TRUE),
+         widths=c(15,2), heights=c(15, 15))
+  layout_fruchterman <- layout_with_fr(g)
+  
+  #rysowanie grafu
   plot(g, 
+       layout = layout_fruchterman,
        edge.width = E(g)$weight * 10,  # Skalowanie grubości krawędzi
-       vertex.size = 30,  # Rozmiar wierzchołków
+       edge.color = edge_colors, #kolor krawędzi
+       vertex.size = 20,  # Rozmiar wierzchołków
        vertex.label.cex = 1,  # Rozmiar etykiet wierzchołków
-       vertex.color = "skyblue",  # Kolor wierzchołków
+       vertex.color = "grey",  # Kolor wierzchołków
+       vertex.label.color = "black",
+       vertex.label.family = "TT Arial",
+       vertex.label.font = 2, #bold font 
        main = "Graf korelacji między szeregami czasowymi"
   )  
+
+  # Rysowanie słupka kolorów po prawej stronie
+  image(1, seq(-1, 1, length.out = 100), matrix(1:100,nrow=1), col = colors, axes = FALSE, ylab = "", xlab = "")
+  axis(2)
+  
+  par(mfrow = c(1, 1), mar = c(3, 3, 3, 3))
 }
 
-graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"), 0.5)
+graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"))
+graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
-d =  "date"
-id = c("a", "b")
-x = c(d, id)
-x
+#----------------------------------------------
+
