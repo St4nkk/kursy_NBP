@@ -164,9 +164,18 @@ c2 <- rolling_correl("2010-01-01", "2010-03-01", "gold_", "EUR", 30)
 p <- new_plot(c, title="Korelacja krocząca z 30 dni", y_label="wsp. korelacji" )
 add_to_plot(p, c2)
   
-#'Tworzy wykres gragu
+#' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
+#' odpowiadają wybranym szeregom zaś krawędzie określają korelację miedzy nimi.
+#' Kolor krawędzi zależy od wartości korelacji (od niebieskiego (korelacja -1) 
+#' przez zielony (korelacja 0) do czerwonego (korelacja 1). 
+#' Szerokość krawedzi zależy od wartości absolutnej korelacji.
 #'
-#'
+#' @param d1 data początkowa w formacie YYYY-MM-DD
+#' @param d2 data końcowa w formacie YYYY-MM-DD
+#' @param ids wektor z identyfikatorami szeregów
+#' @example 
+#' graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"))
+#' graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
 graph_correlation <- function(d1, d2, ids){
   df <- import("data/gold_and_exchange_rates.csv")
@@ -185,12 +194,12 @@ graph_correlation <- function(d1, d2, ids){
   
   E(g)$weight <- abs(E(g)$value)  # Grubość krawędzi będzie odpowiadała wartości korelacji
 
-  # Stworzenie palety viridis
+  # Stworzenie palety kolorów turbo
   colors <- turbo(100)
-  # Mapowanie wag na kolory
+  # Mapowanie wartości krawędzi na kolory
   edge_colors <- colors[as.numeric(cut(c(E(g)$value, 1,-1), breaks = 100))]
   
-  
+  # ustawienie rozłożenia grafu i słupka kolorów
   par(mfcol = c(1, 2), mar = c(1, 1, 1, 2))
   layout(matrix(c(1, 2), 1, 2, byrow = TRUE),
          widths=c(15,2), heights=c(15, 15))
@@ -213,12 +222,12 @@ graph_correlation <- function(d1, d2, ids){
   # Rysowanie słupka kolorów po prawej stronie
   image(1, seq(-1, 1, length.out = 100), matrix(1:100,nrow=1), col = colors, axes = FALSE, ylab = "", xlab = "")
   axis(2)
-  
+  #resetowanie ustawień
   par(mfrow = c(1, 1), mar = c(3, 3, 3, 3))
 }
 
 graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"))
 graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
-#----------------------------------------------
+
 
