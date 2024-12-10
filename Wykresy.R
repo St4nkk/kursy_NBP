@@ -20,10 +20,16 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w P
   df <- mutate(df, label = colnames(df)[2])
   colnames(df)[2] <- "rate"
   p <- ggplot(df, aes(x=date, y=rate, color = label)) + 
-    geom_line() + 
+    geom_line(linewidth = 1) + 
     labs(title=title, x=x_label, y=y_label, color = "Szereg") +
     theme_bw() +
-    theme(plot.title = element_text(hjust = 0.5)) 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    scale_x_date(
+      breaks = scales::pretty_breaks(n = 10),
+      labels = scales::label_date("%Y-%m-%d")
+    )
+    
 
   return(p) 
 }
@@ -46,22 +52,38 @@ add_to_plot <- function(p, df) {
   df <- mutate(df, label = colnames(df)[2])
   colnames(df)[2] <- "rate"
   
-  p <- p + geom_line(data=df)
+  p <- p + geom_line(data=df, linewidth=1)
 
   return(p)
 }
 
 d1 <- "2010-01-01"
-d2 <- "2010-03-01"
+d2 <- "2015-03-01"
 data1 = Dane(d1, d2, "EUR")
 np <- new_plot(data1)
 plot(np)
 data2 = Dane(d1, d2, "USD", "lag", 30)
 p <- add_to_plot(np, data2)
-plot(p)
 data3 = Dane(d1, d2, "AUD", "lag", 30)
 p <- add_to_plot(p, data3)
 plot(p)
+
+multi_plot <- function(d1, d2, ids) {
+  data1 <- Dane(d1, d2, ids[1])
+  p <- new_plot(data1)
+  
+  for (id in ids[2:length(ids)]) {
+    data <- Dane(d1, d2, id)
+    p <- add_to_plot(p, data)
+  }
+  return(p)
+}
+
+mp <- multi_plot("2002-02-01", 
+                 "2024-08-01", 
+                c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", 
+                "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+plot(mp)
 
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
@@ -75,16 +97,19 @@ plot(p)
 #' 
 
 histogram <- function(df) {
-  
+  bin_num = 50
   h <- ggplot(df, aes(x = !!sym(colnames(df)[2]))) + 
-    geom_histogram(binwidth = 0.02, fill = "blue", color = "black", alpha = 0.7) +
+    geom_histogram(bins = bin_num, fill = "blue", color = "black", alpha = 0.7) +
     theme_bw() +
-    labs(title = paste("Histogram", colnames(df)[2]), x = "Kurs", y = "Częstotliwość")
-
+    labs(title = paste("Histogram", colnames(df)[2],"od", df$date[1], "do", df$date[length(df$date)]), x = "Kurs [PLN]", y = "Liczba wystąpień") + 
+    scale_x_continuous(
+      breaks = round(seq(floor(min(df[, 2])), ceiling(max(df[, 2])), length.out = bin_num), 2),  # Ustalamy ticksy
+      labels = round(seq(floor(min(df[, 2])), ceiling(max(df[, 2])), length.out = bin_num), 2))   # Etykiety dla ticków
+  
   return(h)
 }
 
-data1 = Dane(d1, d2, "EUR")
+data1 = Dane(d1, d2, "TRY")
 h <- histogram(data1)
 plot(h)
 
@@ -137,7 +162,7 @@ rolling_correl <- function(d1, d2, id1, id2, window_size){
   df <- import("data/gold_and_exchange_rates.csv") %>%
     select(date, id1, id2) %>%
     arrange(date)
-  print(head(df))
+  
   idx_d1 <- which(df$date >= d1) %>% min() # rzeczywista data poczatkawa wykresu
   idx_d2 <- which(df$date <= d2) %>% max() 
   idx_d0 <- idx_d1 - window_size + 1 # pierwsza data potrzebna do wyznaczenia korelacji dla d1
@@ -158,10 +183,14 @@ rolling_correl <- function(d1, d2, id1, id2, window_size){
   return(df_cor)
 }
 
-c <- rolling_correl("2010-01-01", "2010-03-01", "EUR", "USD", 30)
-c2 <- rolling_correl("2010-01-01", "2010-03-01", "gold_", "EUR", 30)
+window_size = 30
+d1 <- "2010-01-01"
+d2 <- "2010-03-01"
+c <- rolling_correl(d1, d2, "EUR", "USD", window_size)
+c2 <- rolling_correl(d1, d2, "XAU", "EUR", window_size)
 
-p <- new_plot(c, title="Korelacja krocząca z 30 dni", y_label="wsp. korelacji" )
+p <- new_plot(c, title=paste("Korelacja krocząca z ostatnich", window_size, "dni\nOd", d1, "do", d2), y_label="wsp. korelacji" )
+plot(p)
 add_to_plot(p, c2)
   
 #' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
@@ -174,12 +203,12 @@ add_to_plot(p, c2)
 #' @param d2 data końcowa w formacie YYYY-MM-DD
 #' @param ids wektor z identyfikatorami szeregów
 #' @example 
-#' graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"))
+#' graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
 #' graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
 graph_correlation <- function(d1, d2, ids){
   df <- import("data/gold_and_exchange_rates.csv")
-
+  print(head(df))
   df <- df[ ,c("date", ids)] %>%
     filter(date > d1 & date < d2)
   
@@ -226,8 +255,12 @@ graph_correlation <- function(d1, d2, ids){
   par(mfrow = c(1, 1), mar = c(3, 3, 3, 3))
 }
 
-graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "gold_", "AUD"))
-graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
+graph_correlation("2024-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
 
+graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"))
+d <- Dane("2010-01-01", "2010-03-01", "NOK")
+
+(colnames(df))
 

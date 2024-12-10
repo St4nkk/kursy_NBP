@@ -6,7 +6,7 @@ pacman::p_load(dplyr, rio, rlang)
 #' @param d1 początkowa data YYYY-MM-DD
 #' @param d2 końcowa data YYYY-MM-DD
 #' @param id kod wlauty lub złota, może przyjmować jedną z wartości:
-#' "gold_" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
+#' "XAU" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
 #' "USD" "CHF" "SEK" "HUF" "GBP" "ITL" "XDR" "CYP" "HKD" "LTL" "LVL" "MTL" "ZAR" "RUB" "SKK" "SIT" "UAH" "BGN"
 #' "RON" "THB" "NZD" "SGD" "ISK" "HRK" "TRY" "PHP" "MXN" "BRL" "MYR" "IDR" "KRW" "CNY" "ILS" "INR" "CLP"
 #' @param mode "normal" - bez przesunięcia (domyślnie)
@@ -15,8 +15,8 @@ pacman::p_load(dplyr, rio, rlang)
 #' @param n liczba dni roboczych przesunięcia (domyślnie 0)
 #' @return ramka danych (2 kolumny okeślające datę i wartości szeregu)
 #' @examples
-#' Dane("2020-01-01", "2020-01-10", "gold_")
-#' Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
+#' Dane("2020-01-01", "2020-01-10", "XAU")
+#' Dane("2020-01-01", "2020-01-10", "XAU", "lead", 2)
 #' Dane("2018-01-01", "2020-01-10", "EUR","lag", 30)
  
 #Funkcja Dane zwraca ciąg wartości i dat szeregu id pomiędzy datami d1, d2 
@@ -25,17 +25,17 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
   if (!(mode %in% c("normal", "lag", "lead"))) {
     print("Nieprawidłowa wartość parametru mode. Dostępne: lag, lead lub normal (domyślny)")
     return()
-  } 
+  }
+  
+  if (n < 0) {
+    print("Wartość parametru n musi być nieujemna.")
+    return()
+  }
   
   df <- import("data/gold_and_exchange_rates.csv") 
 
   if (!(id %in% colnames(df)[-1])){
     print(paste("Nie udało się odczytać danych z bazy. Niepoprawne id:", id))
-    return()
-  }
-  
-  if (n < 0) {
-    print("Wartość parametru n musi być nieujemna.")
     return()
   }
   
@@ -61,14 +61,15 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
 
 test_Dane <- function() {
   dane_gold <- Dane("2020-01-01", "2019-01-10", "data")
-  dane_gold <- Dane("2000-01-01", "2002-01-10", "gold_")
-  dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lag", -2)
-  dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "gold_", "lead", 2)
+  dane_gold <- Dane("2000-01-01", "2002-01-10", "XAU")
+  dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "XAU", "lag", -2)
+  dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "XAU", "lead", 2)
   
   dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
   dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 }
 
+test_Dane()
 
 #exchange_rates_df <- import("data/exchange_rates.csv")
 #codes <- exchange_rates_df %>% distinct(currency_code)
@@ -76,7 +77,7 @@ test_Dane <- function() {
 #' Zwraca wartość korelacji dwóch szeregów id1 oraz id2 pomiędzy datami d1 i d2 oóżnionymi odpowiednio o lag1 i lag2
 #'
 #' id1 i id2 może przyjmować jedną z wartości:  
-#' "gold_" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
+#' "XAU" "AUD" "ATS" "BEF" "CZK" "DKK" "EEK" "FIM" "FRF" "GRD" "ESP" "NLG" "IEP" "JPY" "CAD" "LUF" "NOK" "PTE" "EUR"
 #' "USD" "CHF" "SEK" "HUF" "GBP" "ITL" "XDR" "CYP" "HKD" "LTL" "LVL" "MTL" "ZAR" "RUB" "SKK" "SIT" "UAH" "BGN"
 #' "RON" "THB" "NZD" "SGD" "ISK" "HRK" "TRY" "PHP" "MXN" "BRL" "MYR" "IDR" "KRW" "CNY" "ILS" "INR" "CLP"
 #' 
@@ -89,7 +90,7 @@ test_Dane <- function() {
 #' @return wartośc korelacji 
 #' @examples
 #' correl("2005-01-01", "2008-01-01", "EUR", "EUR", 0, 0)
-#' correl("2015-03-01", "2016-03-01", "gold_", "EUR", 30, 0)
+#' correl("2015-03-01", "2016-03-01", "XAU", "EUR", 30, 0)
 
 correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
   
@@ -125,10 +126,10 @@ test_correl <- function(){
   korel <- correl("2005-01-01", "2008-01-01", "EUR", "USD")
   print(korel)
   print("---------------------------------------")
-  korel <- correl("2002-06-01", "2008-08-01", "USD", "gold_")
+  korel <- correl("2002-06-01", "2008-08-01", "USD", "XAU")
   print(korel)
   print("---------------------------------------")
-  korel <- correl("2002-06-01", "2008-06-01", "USD", "gold_1")
+  korel <- correl("2002-06-01", "2008-06-01", "USD", "XAU1")
   print(korel)
 }
 

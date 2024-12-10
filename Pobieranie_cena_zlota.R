@@ -54,7 +54,7 @@ get_gold_data_from_NBP <- function(start_date, last_date){
     
     start_date <- end_date + 1
   }
-  colnames(gold_price) <- c("date", "gold_")
+  colnames(gold_price) <- c("date", "XAU")
   return(gold_price)
 }
 
@@ -104,7 +104,7 @@ scrap_gold_data <- function() {
   close(progbar)
   
   gold_price_scrap_df <- bind_rows(gold_price_scrap)
-  colnames(gold_price_scrap_df) <- c("date", "gold_")
+  colnames(gold_price_scrap_df) <- c("date", "XAU")
   
   return(gold_price_scrap_df)
 }
