@@ -23,20 +23,18 @@ pacman::p_load(dplyr, rio, rlang)
 Dane <- function(d1, d2, id, mode = "normal", n = 0){
   
   if (!(mode %in% c("normal", "lag", "lead"))) {
-    print("Nieprawidłowa wartość parametru mode. Dostępne: lag, lead lub normal (domyślny)")
-    return()
+    stop("Nieprawidłowa wartość parametru mode. Dostępne: 'lag', 'lead' lub 'normal' (domyślny)")
   }
   
   if (n < 0) {
-    print("Wartość parametru n musi być nieujemna.")
-    return()
+    stop("Wartość parametru n nie może być ujemna.")
   }
   
   df <- import("data/gold_and_exchange_rates.csv") 
 
   if (!(id %in% colnames(df)[-1])){
-    print(paste("Nie udało się odczytać danych z bazy. Niepoprawne id:", id))
-    return()
+    stop(paste(c("Nie udało się odczytać danych z bazy. Niepoprawne id:", id,
+                  "\ndostępne wartości: ",colnames(df)[-1]), collapse=" "))
   }
   
   df <- df %>% select(date, !!sym(id)) %>%
@@ -51,11 +49,16 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
   } 
 
   df <- df %>% 
-    filter(date >= d1 & date <= d2 & !is.na(!!sym(id))) %>%
+    filter(date >= d1 & date <= d2 ) %>% #& !is.na(!!sym(id))) %>%
     select(1, ncol(df))  #wybierz kolumnę pierwszą (data) i ostatnią (zwykły, opóźniony lub przyspieszony wektor) 
+  
   if (nrow(df) == 0 ){
     df = NULL
+    warning("Brak danych dla zadanego przedziału dat!")
   }
+  if (any(is.na(df))){#colSums(is.na(df))
+    warning(paste("Dane", id, "zawierają wartości NA!"))
+  } 
   return(df)
 }
 
@@ -63,7 +66,7 @@ test_Dane <- function() {
   dane_gold <- Dane("2020-01-01", "2019-01-10", "data")
   dane_gold <- Dane("2000-01-01", "2002-01-10", "XAU")
   dane_gold_lag2 <- Dane("2020-01-01", "2020-01-10", "XAU", "lag", -2)
-  dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "XAU", "lead", 2)
+  dane_gold_lead2 <- Dane("2020-01-01", "2020-01-10", "XAU", "leada", 2)
   
   dane_eur <- Dane("2020-01-01", "2020-01-10", "EUR")
   dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
@@ -93,18 +96,18 @@ test_Dane()
 #' correl("2015-03-01", "2016-03-01", "XAU", "EUR", 30, 0)
 
 correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
-  
-  x <- Dane(d1, d2, id1, mode="lag", lag1) 
-  y <- Dane(d1, d2, id2, mode="lag", lag2) 
+  mode1 <- ifelse(lag1 > 0, "lag", "normal") 
+  mode2 <- ifelse(lag2 > 0, "lag", "normal")
+  x <- Dane(d1, d2, id1, mode=mode1, lag1) 
+  y <- Dane(d1, d2, id2, mode=mode2, lag2) 
 
   if (is.null(x)){
-    print(paste("Wektor", id1, "ma wartość NULL"))
-    return()
+    stop(paste("Wektor", id1, "ma wartość NULL"))
   } 
   if (is.null(y)) {
-    print(paste("Wektor", id2, "ma wartość NULL"))
-    return()
+    stop(paste("Wektor", id2, "ma wartość NULL"))
   }
+  
   x <- x %>% pull(2)
   y <- y %>% pull(2)
   
@@ -112,7 +115,7 @@ correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
     min_length <- min(length(x), length(y))
     x <- x[1:min_length]
     y <- y[1:min_length]
-    print(paste0("Wektory są różnej długości! Dokonano zrównania do krótszego wektora (len = ", min_length, ")"))
+    warning(paste0("Wektory są różnej długości! Dokonano zrównania do krótszego wektora (len = ", min_length, ")"))
   }
   
   korelacja <- cor(x, y, method = "pearson")
@@ -120,7 +123,7 @@ correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
 }
 
 test_correl <- function(){
-  korel <- correl("2005-01-01", "2008-01-01", "EUR", "EURO")
+  korel <- correl("2005-01-01", "2008-01-01", "EUR", "EUR")
   print(korel)
   print("---------------------------------------")
   korel <- correl("2005-01-01", "2008-01-01", "EUR", "USD")
@@ -128,10 +131,8 @@ test_correl <- function(){
   print("---------------------------------------")
   korel <- correl("2002-06-01", "2008-08-01", "USD", "XAU")
   print(korel)
-  print("---------------------------------------")
-  korel <- correl("2002-06-01", "2008-06-01", "USD", "XAU1")
-  print(korel)
+
 }
 
-#test_correl()
+test_correl()
 

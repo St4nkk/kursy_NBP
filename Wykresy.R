@@ -1,5 +1,7 @@
-pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2, viridis)
+pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2, viridis, purrr)
 source("Funkcja_Dane_Korel.R")
+
+scaling_rates <- import("data/scaling_rates.csv")
 
 #' Tworzy i zwraca nowy obiekt gg zawierający liniowy wykres ramki danych o 2 kolumnach
 #' 
@@ -16,12 +18,17 @@ source("Funkcja_Dane_Korel.R")
 
 #
 new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w PLN") {
-
-  df <- mutate(df, label = colnames(df)[2])
-  colnames(df)[2] <- "rate"
+  id_with_desc <- colnames(df)[2] 
+  id <- strsplit(id_with_desc, "_")[[1]][[1]]
+  scaler <- scaling_rates[,id]
+  label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
+  
+  df <- mutate(df, label = label, rate = !!sym(id_with_desc) * scaler)
+  print(head(df))
+  #colnames(df)[2] <- "rate"
   p <- ggplot(df, aes(x=date, y=rate, color = label)) + 
     geom_line(linewidth = 1) + 
-    labs(title=title, x=x_label, y=y_label, color = "Szereg") +
+    labs(title=paste(title,"\nod",df$date[1], "do", df$date[length(df$date)]) , x=x_label, y=y_label, color = "Szereg") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
     theme(plot.title = element_text(hjust = 0.5)) +
@@ -30,7 +37,6 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w P
       labels = scales::label_date("%Y-%m-%d")
     )
     
-
   return(p) 
 }
 
@@ -48,10 +54,14 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w P
 #' 
 
 add_to_plot <- function(p, df) {
-
-  df <- mutate(df, label = colnames(df)[2])
-  colnames(df)[2] <- "rate"
   
+  id_with_desc <- colnames(df)[2] 
+  id <- strsplit(id_with_desc, "_")[[1]][[1]]
+  scaler <- scaling_rates[,id]
+  label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
+  
+  df <- mutate(df, label = label, rate = !!sym(id_with_desc) * scaler)
+
   p <- p + geom_line(data=df, linewidth=1)
 
   return(p)
@@ -79,11 +89,13 @@ multi_plot <- function(d1, d2, ids) {
   return(p)
 }
 
-mp <- multi_plot("2002-02-01", 
+mp <- multi_plot("2008-02-01", 
                  "2024-08-01", 
                 c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", 
                 "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 plot(mp)
+
+
 
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
@@ -130,7 +142,8 @@ plot(h)
 #' stats(data)
 #' 
 stats <- function(df) {
-  data <- df %>% pull(2)
+  data <- df %>% pull(2) %>% na.omit()
+
   s <- list("min" = min(data), 
             "Qu_1" = quantile(data, 0.25, names = FALSE),
             "median" = median(data),
@@ -145,6 +158,54 @@ stats <- function(df) {
 }
 
 (s <- stats(data1))
+
+code_to_currency <- import("data/code_to_currency.csv")
+
+# wyznaczanie statystyk dla każdej waluty
+all_stats <- map(code_to_currency$Code, ~ {
+  data <- Dane("2000-01-01", "2024-11-30", .x)
+  stats(data)
+})
+
+names(all_stats) <- code_to_currency$Code
+all_stats_df <- as.data.frame(do.call(cbind, all_stats))
+View(all_stats_df)
+
+conversion <- function(x) {
+  if(x<0.6 & x>=0.08) {
+    scaler = 10
+  } else if(x<0.08 & x>=0.008){
+    scaler = 100
+  } else if(x<0.008 & x>=0.0008){
+    scaler = 1000
+  } else if(x<0.0008 & x>=0.00008){
+    scaler = 10000
+  } else{
+    scaler = 1
+  } 
+  return(scaler)
+}
+
+median_val <- as.numeric(unlist(all_stats_df["median",]))
+
+scale_rates <- map(colnames(all_stats_df), ~ {
+  data <- all_stats_df["median", .x]
+  conversion(data)
+})
+names(scale_rates) <- colnames(all_stats_df)
+scale_rates_df <- as.data.frame(do.call(cbind, scale_rates))
+export(scale_rates_df, "data/scaling_rates.csv")
+
+con_rate <- as.numeric(unlist(scale_rates))
+scaled <- median_val * con_rate
+
+barplot(scaled[-52], 
+        names.arg = colnames(all_stats_df)[-52], 
+        main = "Bar Plot of median", 
+        xlab = "Currency Codes", 
+        ylab = "Median", 
+        col = "lightblue", 
+        las = 2)
 
 #' Rysuje wykres korelacji kroczącej 2 szeregów. Dla każdego dnia roboczego z 
 #' zadanego zakresu wyliczana jest korelacja szeregów na podstawie 'window_size' 
@@ -189,7 +250,7 @@ d2 <- "2010-03-01"
 c <- rolling_correl(d1, d2, "EUR", "USD", window_size)
 c2 <- rolling_correl(d1, d2, "XAU", "EUR", window_size)
 
-p <- new_plot(c, title=paste("Korelacja krocząca z ostatnich", window_size, "dni\nOd", d1, "do", d2), y_label="wsp. korelacji" )
+p <- new_plot(c, title=paste("Korelacja krocząca z ostatnich", window_size, "dni"), y_label="wsp. korelacji" )
 plot(p)
 add_to_plot(p, c2)
   
@@ -208,8 +269,8 @@ add_to_plot(p, c2)
 
 graph_correlation <- function(d1, d2, ids){
   df <- import("data/gold_and_exchange_rates.csv")
-  print(head(df))
-  df <- df[ ,c("date", ids)] %>%
+
+    df <- df[ ,c("date", ids)] %>%
     filter(date > d1 & date < d2)
   
   cor_matrix <- cor(df[, ids], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych
@@ -261,6 +322,4 @@ graph_correlation("2024-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD",
 
 graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"))
 d <- Dane("2010-01-01", "2010-03-01", "NOK")
-
-(colnames(df))
 
