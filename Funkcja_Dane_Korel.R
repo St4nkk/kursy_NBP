@@ -1,4 +1,7 @@
-pacman::p_load(dplyr, rio, rlang)
+pacman::p_load(dplyr,
+               rio,
+               rlang)
+
 #' Zwraca ramkę danych zawierającą daty i wartości szeregu id pomiędzy datami d1 i d2.
 #' Możliwe jest dodanie opóżnienienia lub przyspieszenia o zadaną wartość.
 #'
@@ -19,8 +22,11 @@ pacman::p_load(dplyr, rio, rlang)
 #' Dane("2020-01-01", "2020-01-10", "XAU", "lead", 2)
 #' Dane("2018-01-01", "2020-01-10", "EUR","lag", 30)
  
-#Funkcja Dane zwraca ciąg wartości i dat szeregu id pomiędzy datami d1, d2 
-Dane <- function(d1, d2, id, mode = "normal", n = 0){
+Dane <- function(d1,
+                 d2,
+                 id,
+                 mode = "normal",
+                 n = 0){
   
   if (!(mode %in% c("normal", "lag", "lead"))) {
     stop("Nieprawidłowa wartość parametru mode. Dostępne: 'lag', 'lead' lub 'normal' (domyślny)")
@@ -37,8 +43,8 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
                   "\ndostępne wartości: ",colnames(df)[-1]), collapse=" "))
   }
   
-  df <- df %>% select(date, !!sym(id)) %>%
-        arrange(date)
+  df <- df %>% select(date, !!sym(id)) #%>%
+        #arrange(date)
     
   if (mode == "normal") {
     NULL
@@ -54,7 +60,7 @@ Dane <- function(d1, d2, id, mode = "normal", n = 0){
   
   if (nrow(df) == 0 ){
     df = NULL
-    warning("Brak danych dla zadanego przedziału dat!")
+    warning(paste("Brak danych", id, "dla zadanego przedziału dat!"))
   }
   if (any(is.na(df))){#colSums(is.na(df))
     warning(paste("Dane", id, "zawierają wartości NA!"))
@@ -95,7 +101,13 @@ test_Dane()
 #' correl("2005-01-01", "2008-01-01", "EUR", "EUR", 0, 0)
 #' correl("2015-03-01", "2016-03-01", "XAU", "EUR", 30, 0)
 
-correl <- function(d1, d2, id1, id2, lag1 = 0, lag2 = 0) {
+correl <- function(d1,
+                   d2,
+                   id1,
+                   id2,
+                   lag1 = 0,
+                   lag2 = 0) {
+  
   mode1 <- ifelse(lag1 > 0, "lag", "normal") 
   mode2 <- ifelse(lag2 > 0, "lag", "normal")
   x <- Dane(d1, d2, id1, mode=mode1, lag1) 

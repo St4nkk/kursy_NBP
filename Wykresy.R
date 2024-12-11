@@ -1,7 +1,31 @@
-pacman::p_load(ggplot2,dplyr,e1071, zoo, igraph, reshape2, viridis, purrr)
-source("Funkcja_Dane_Korel.R")
+pacman::p_load(ggplot2,
+               dplyr,
+               e1071,           #pakiet statysyczny 
+               zoo,
+               igraph,
+               reshape2,
+               viridis,         #palety kolorów    
+               purrr,
+               directlabels,    #etykiety na wykresach
+               gridExtra)       #rysowanie układu wilu wykresów
 
-scaling_rates <- import("data/scaling_rates.csv")
+source("Funkcja_Dane_Korel.R")  #Funkcja Dane
+
+scaling_rates <- import("data/scaling_rates.csv")  #pobieranie wsp. skalujacych do wykresów
+code_to_currency <- import("data/code_to_currency.csv")  #ramka do zamiany kodu nazwę waluty
+
+#' Zwraca pełna nazwę waluty dla danego kodu
+#' 
+#' @param id kod waluty np."EUR"
+#' @return nazwa waluty
+#' @example 
+#' currency_name_from_id("EUR")
+#' 
+currency_name_from_id <- function(id){
+  
+  currency_name <- code_to_currency %>% filter(Code == id) %>% pull(Currency)
+  return(currency_name)
+}
 
 #' Tworzy i zwraca nowy obiekt gg zawierający liniowy wykres ramki danych o 2 kolumnach
 #' 
@@ -16,15 +40,29 @@ scaling_rates <- import("data/scaling_rates.csv")
 #' np <- new_plot(data1)
 #' plot(np)
 
-#
-new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w PLN") {
+
+new_plot <- function(df, 
+                     scaled=TRUE, 
+                     title="Kurs średni", 
+                     x_label="data", 
+                     y_label="cena w PLN",
+                     line_labs=TRUE) {
+  
   id_with_desc <- colnames(df)[2] 
+  
   id <- strsplit(id_with_desc, "_")[[1]][[1]]
-  scaler <- scaling_rates[,id]
+  scaler <- ifelse(scaled, scaling_rates[,id], 1)
   label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
   
-  df <- mutate(df, label = label, rate = !!sym(id_with_desc) * scaler)
-  print(head(df))
+  currency_name <- currency_name_from_id(id)
+  if(length(currency_name) != 0){
+    label <- paste(label, "-", currency_name_from_id(id))
+  }
+   
+  df <- df %>%
+    mutate(df, label = label, rate = !!sym(id_with_desc) * scaler) %>%
+    select(date, label, rate)
+
   #colnames(df)[2] <- "rate"
   p <- ggplot(df, aes(x=date, y=rate, color = label)) + 
     geom_line(linewidth = 1) + 
@@ -34,9 +72,16 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w P
     theme(plot.title = element_text(hjust = 0.5)) +
     scale_x_date(
       breaks = scales::pretty_breaks(n = 10),
-      labels = scales::label_date("%Y-%m-%d")
-    )
-    
+      labels = scales::label_date("%Y-%m-%d")) +
+    scale_y_continuous(
+      breaks = scales::breaks_extended(10))
+  
+  if(line_labs) {
+    p <- p +
+      geom_dl(aes(label = id), method = list(dl.trans(x = x + 0.2), "last.points", cex = 0.8)) +
+      geom_dl(aes(label = id), method = list(dl.trans(x = x - 0.2), "first.points", cex = 0.8))
+  }
+  
   return(p) 
 }
 
@@ -53,17 +98,34 @@ new_plot <- function(df, title="Kurs średni", x_label="data", y_label="cena w P
 #' plot(p)
 #' 
 
-add_to_plot <- function(p, df) {
+
+add_to_plot <- function(p, 
+                        df, 
+                        scaled=TRUE,
+                        line_labs=TRUE) {
   
   id_with_desc <- colnames(df)[2] 
   id <- strsplit(id_with_desc, "_")[[1]][[1]]
-  scaler <- scaling_rates[,id]
+  scaler <- ifelse(scaled, scaling_rates[,id], 1)
   label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
   
-  df <- mutate(df, label = label, rate = !!sym(id_with_desc) * scaler)
+  currency_name <- currency_name_from_id(id)
+  if(length(currency_name) != 0){
+    label <- paste(label, "-", currency_name_from_id(id))
+  }
+  
+  df <- df %>%
+    mutate(df, label = label, rate = !!sym(id_with_desc) * scaler) %>%
+    select(date, label, rate)
 
-  p <- p + geom_line(data=df, linewidth=1)
-
+  p <- p + geom_line(data=df, linewidth=1) 
+  
+  if (line_labs) {
+    p <- p +
+      geom_dl(data = df, aes(label = id), method = list(dl.trans(x = x + 0.2), "last.points", cex = 0.8)) +
+      geom_dl(data = df, aes(label = id), method = list(dl.trans(x = x - 0.2), "first.points", cex = 0.8))
+  }
+  
   return(p)
 }
 
@@ -78,13 +140,17 @@ data3 = Dane(d1, d2, "AUD", "lag", 30)
 p <- add_to_plot(p, data3)
 plot(p)
 
-multi_plot <- function(d1, d2, ids) {
+multi_plot <- function(d1,
+                       d2,
+                       ids,
+                       scaled=TRUE) {
+  
   data1 <- Dane(d1, d2, ids[1])
-  p <- new_plot(data1)
+  p <- new_plot(data1, scaled)
   
   for (id in ids[2:length(ids)]) {
     data <- Dane(d1, d2, id)
-    p <- add_to_plot(p, data)
+    p <- add_to_plot(p, data, scaled)
   }
   return(p)
 }
@@ -110,20 +176,31 @@ plot(mp)
 
 histogram <- function(df) {
   bin_num = 50
+  id <- strsplit(colnames(df)[2], "_")[[1]][[1]]
+
   h <- ggplot(df, aes(x = !!sym(colnames(df)[2]))) + 
     geom_histogram(bins = bin_num, fill = "blue", color = "black", alpha = 0.7) +
     theme_bw() +
-    labs(title = paste("Histogram", colnames(df)[2],"od", df$date[1], "do", df$date[length(df$date)]), x = "Kurs [PLN]", y = "Liczba wystąpień") + 
+    labs(title = paste("Histogram", colnames(df)[2], "-" , currency_name_from_id(id), 
+                       "\nod", df$date[1], "do", df$date[length(df$date)]), 
+         x = "Kurs [PLN]", y = "Liczba wystąpień") + 
     scale_x_continuous(
-      breaks = round(seq(floor(min(df[, 2])), ceiling(max(df[, 2])), length.out = bin_num), 2),  # Ustalamy ticksy
-      labels = round(seq(floor(min(df[, 2])), ceiling(max(df[, 2])), length.out = bin_num), 2))   # Etykiety dla ticków
-  
+      breaks = scales::breaks_extended(bin_num/4))
+      
   return(h)
 }
 
+d1 <- "2002-01-01"
+d2 <- "2024-01-01"
 data1 = Dane(d1, d2, "TRY")
 h <- histogram(data1)
 plot(h)
+
+ids <- c("EUR", "USD", "XAU", "RUB", "CNY", "ILS")
+plot_list <- lapply(ids, function(id) {
+  histogram(Dane(d1,d2,id))})
+
+grid.arrange(grobs = plot_list, nrow = 2, ncol = 3)
 
 #' Wyznacza statystyki opisowe wektora 
 #' Statystyki: minimum (min)
@@ -171,6 +248,7 @@ names(all_stats) <- code_to_currency$Code
 all_stats_df <- as.data.frame(do.call(cbind, all_stats))
 View(all_stats_df)
 
+# Ustalenie skalera do wykresów na podstawie wartości
 conversion <- function(x) {
   if(x<0.6 & x>=0.08) {
     scaler = 10
@@ -187,7 +265,7 @@ conversion <- function(x) {
 }
 
 median_val <- as.numeric(unlist(all_stats_df["median",]))
-
+#Wyznaczenie wsp. skalowania na podstawie mediany 
 scale_rates <- map(colnames(all_stats_df), ~ {
   data <- all_stats_df["median", .x]
   conversion(data)
@@ -218,18 +296,31 @@ barplot(scaled[-52],
 #' @param window_size rozmiar okna analizy
 #' @return ramka danych składająca się z 2 kolumn (date, cor_val) 
 #' 
-rolling_correl <- function(d1, d2, id1, id2, window_size){
+rolling_correl <- function(d1,
+                           d2,
+                           id1,
+                           id2,
+                           window_size,
+                           mode1="normal",
+                           mode2="normal",
+                           n1=0,
+                           n2=0){
   
-  df <- import("data/gold_and_exchange_rates.csv") %>%
-    select(date, id1, id2) %>%
-    arrange(date)
+  dates <- import("data/gold_and_exchange_rates.csv") %>%
+    select(date) 
   
-  idx_d1 <- which(df$date >= d1) %>% min() # rzeczywista data poczatkawa wykresu
-  idx_d2 <- which(df$date <= d2) %>% max() 
+  idx_d1 <- which(dates >= d1) %>% min() # rzeczywista data poczatkawa wykresu
   idx_d0 <- idx_d1 - window_size + 1 # pierwsza data potrzebna do wyznaczenia korelacji dla d1
-
-  df <- df %>% 
-    slice(idx_d0:idx_d2) 
+  
+  if (idx_d0 <= 0) {
+    stop("Nie można wyznaczyć korelacji dla wybranych parametrów. Wybierz późniejszą datę początkową lub zmniejsz rozmiar okna.")
+  }
+  
+  d0 <- dates[idx_d0,]
+  df1 <- Dane(d0, d2, id1, mode1, n1)
+  df2 <- Dane(d0, d2, id2, mode2, n2)
+  
+  df <- inner_join(df1, df2, by = "date")
   
   df_cor <- mutate(df, correlation := rollapply(
       data = df[, c(id1, id2)], 
@@ -240,19 +331,24 @@ rolling_correl <- function(d1, d2, id1, id2, window_size){
       fill = NA)) %>%
     filter(date > d1 & date < d2) %>%
     select(date, correlation)
+  
   colnames(df_cor)[2] <- paste0(id1,"-", id2)
+  
   return(df_cor)
 }
 
 window_size = 30
-d1 <- "2010-01-01"
-d2 <- "2010-03-01"
+d1 <- "2002-04-01"
+d2 <- "2015-03-01"
 c <- rolling_correl(d1, d2, "EUR", "USD", window_size)
 c2 <- rolling_correl(d1, d2, "XAU", "EUR", window_size)
 
-p <- new_plot(c, title=paste("Korelacja krocząca z ostatnich", window_size, "dni"), y_label="wsp. korelacji" )
+p <- new_plot(c, scaled = FALSE, 
+              title = paste("Korelacja krocząca z ostatnich", window_size, "dni"),
+              y_label = "wsp. korelacji",
+              line_labs = FALSE)
 plot(p)
-add_to_plot(p, c2)
+add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
   
 #' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
 #' odpowiadają wybranym szeregom zaś krawędzie określają korelację miedzy nimi.
@@ -267,7 +363,10 @@ add_to_plot(p, c2)
 #' graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
 #' graph_correlation("2024-02-01", "2024-08-01", c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 
-graph_correlation <- function(d1, d2, ids){
+graph_correlation <- function(d1,
+                              d2,
+                              ids){
+  
   df <- import("data/gold_and_exchange_rates.csv")
 
     df <- df[ ,c("date", ids)] %>%
