@@ -7,7 +7,7 @@ pacman::p_load(ggplot2,
                viridis,         #palety kolorów    
                purrr,
                directlabels,    #etykiety na wykresach
-               gridExtra)       #rysowanie układu wilu wykresów
+               gridExtra)        #rysowanie układu wilu wykresów
 
 source("Funkcja_Dane_Korel.R")  #Funkcja Dane
 
@@ -21,10 +21,10 @@ code_to_currency <- import("data/code_to_currency.csv")  #ramka do zamiany kodu 
 #' @example 
 #' currency_name_from_id("EUR")
 #' 
-currency_name_from_id <- function(id){
+currency_name_from_id <- function(ids){
   
-  currency_name <- code_to_currency %>% filter(Code == id) %>% pull(Currency)
-  return(currency_name)
+  currency_names <- code_to_currency$Currency[match(ids, code_to_currency$Code)]
+  return(currency_names)
 }
 
 #' Tworzy i zwraca nowy obiekt gg zawierający liniowy wykres ramki danych o 2 kolumnach
@@ -202,7 +202,7 @@ plot_list <- lapply(ids, function(id) {
 
 grid.arrange(grobs = plot_list, nrow = 2, ncol = 3)
 
-#' Wyznacza statystyki opisowe wektora 
+#' Wyznacza statystyki opisowe wektora, wartości NA są pomijane 
 #' Statystyki: minimum (min)
 #'            pierwszy kwartyl (Qu_1)
 #'            mediana (median)
@@ -225,7 +225,7 @@ stats <- function(df) {
             "Qu_1" = quantile(data, 0.25, names = FALSE),
             "median" = median(data),
             "mean" = mean(data),
-            "Qu_3" = quantile(data, 0,75, names = FALSE),
+            "Qu_3" = quantile(data, 0.75, names = FALSE),
             "max" = max(data),
             "std" = sd(data),
             "skew" = skewness(data),
@@ -234,7 +234,8 @@ stats <- function(df) {
   return (s)
 }
 
-(s <- stats(data1))
+(s <- stats(Dane("2000-01-01", "2020-01-01", "XAU")))
+
 
 code_to_currency <- import("data/code_to_currency.csv")
 
@@ -350,6 +351,7 @@ p <- new_plot(c, scaled = FALSE,
 plot(p)
 add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
   
+
 #' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
 #' odpowiadają wybranym szeregom zaś krawędzie określają korelację miedzy nimi.
 #' Kolor krawędzi zależy od wartości korelacji (od niebieskiego (korelacja -1) 
@@ -365,30 +367,67 @@ add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
 
 graph_correlation <- function(d1,
                               d2,
-                              ids){
-  
-  df <- import("data/gold_and_exchange_rates.csv")
+                              ids,
+                              base = "PLN"){
 
-    df <- df[ ,c("date", ids)] %>%
-    filter(date > d1 & date < d2)
+  #pobieranie danych
+  df <- lapply(ids, function(id) {Dane(d1, d2, id)}) #lista ramek z poszczególnymi walutami 
+  df <- Reduce(function(x, y) merge(x, y, by = 'date', all = TRUE), df) #łączenie w jedną ramkę  
   
-  cor_matrix <- cor(df[, ids], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych
+  if (!(base %in% c(colnames(df)[-1], "PLN"))) {
+    stop("Nieprawidłowa waluta odniesienia base.")
+  }
+  
+  if (base != "PLN") {
 
+    df <- df %>% 
+      mutate(across(-c(date, !!sym(base)), ~ . / !!sym(base))) %>% 
+      mutate(PLN = 1/!!sym(base)) %>% 
+      select(-!!sym(base))
+  }  
+  
+  #wyznaczenie korelacji
+  cor_matrix <- cor(df[,-1], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych baz 1 kolumny czyli daty
+  print(colnames(cor_matrix))
+  #------------------
+  #heatmapa ggplot
+
+  cor_long <- melt(cor_matrix, value.name = "korelacja")
+
+  heatmap <- ggplot(data = cor_long, aes(x = Var1, y = Var2, fill = korelacja)) +
+    geom_tile() +
+    scale_fill_viridis(option = "turbo", limits = c(-1, 1)) +
+    theme_minimal() +
+    labs(title = paste("Macierz korelacji między walutami od", df$date[1], "do", df$date[length(df$date)]), 
+         x = "Waluty", y = "Waluty", color = "waluta") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    geom_text(aes(Var1, Var2, label = round(korelacja,2)), color = "black", size = 3)+
+    scale_y_discrete(
+      labels = paste(currency_name_from_id(colnames(cor_matrix)), "-", colnames(cor_matrix))  # Custom tick labels
+    )
+
+  plot(heatmap)
+  #--------------------------
   diag(cor_matrix) <- NA #Wartości na diagonali są równe 1 - nie są przydatne do wykresu
   cor_matrix[lower.tri(cor_matrix)] <- NA #wartości poniżej diagonali są takie same jak powyżej diagonali - są nadmiarowe
   cor_long <- melt(cor_matrix) # przekształcenie do formatu długiego
   cor_long <- cor_long[!is.na(cor_long[, 3]), ] #usunięcie wierszy o wartości NA
+  
 
+  #utworzenie grafu
   g <- graph_from_data_frame(cor_long, directed = FALSE)
   
   E(g)$weight <- abs(E(g)$value)  # Grubość krawędzi będzie odpowiadała wartości korelacji
-
+  
   # Stworzenie palety kolorów turbo
   colors <- turbo(100)
+
   # Mapowanie wartości krawędzi na kolory
   edge_colors <- colors[as.numeric(cut(c(E(g)$value, 1,-1), breaks = 100))]
   
-  # ustawienie rozłożenia grafu i słupka kolorów
+
+  
+  # ustawienie rozłożenia grafu i słupka kolorów na rysunku
   par(mfcol = c(1, 2), mar = c(1, 1, 1, 2))
   layout(matrix(c(1, 2), 1, 2, byrow = TRUE),
          widths=c(15,2), heights=c(15, 15))
@@ -405,10 +444,10 @@ graph_correlation <- function(d1,
        vertex.label.color = "black",
        vertex.label.family = "TT Arial",
        vertex.label.font = 2, #bold font 
-       main = "Graf korelacji między szeregami czasowymi"
+       main = paste("Graf korelacji między walutami od", df$date[1], "do", df$date[length(df$date)])
   )  
 
-  # Rysowanie słupka kolorów po prawej stronie
+  # Rysowanie słupka kolorów 
   image(1, seq(-1, 1, length.out = 100), matrix(1:100,nrow=1), col = colors, axes = FALSE, ylab = "", xlab = "")
   axis(2)
   #resetowanie ustawień
@@ -416,7 +455,8 @@ graph_correlation <- function(d1,
 }
 
 graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
-graph_correlation("2024-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+graph_correlation("2000-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+graph_correlation("2000-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"), "EUR")
 
 
 graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"))
