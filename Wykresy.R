@@ -7,7 +7,9 @@ pacman::p_load(ggplot2,
                viridis,         #palety kolorów    
                purrr,
                directlabels,    #etykiety na wykresach
-               gridExtra)        #rysowanie układu wilu wykresów
+               gridExtra,       #rysowanie układu wilu wykresów
+               plotly,
+               ggraph)        
 
 source("Funkcja_Dane_Korel.R")  #Funkcja Dane
 
@@ -140,6 +142,12 @@ data3 = Dane(d1, d2, "AUD", "lag", 30)
 p <- add_to_plot(p, data3)
 plot(p)
 
+interactive_plot <- function(gg_plot) {
+  ggplotly(gg_plot)
+}
+
+interactive_plot(p)
+
 multi_plot <- function(d1,
                        d2,
                        ids,
@@ -161,7 +169,7 @@ mp <- multi_plot("2008-02-01",
                 "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
 plot(mp)
 
-
+interactive_plot(mp)
 
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
@@ -350,7 +358,13 @@ p <- new_plot(c, scaled = FALSE,
               line_labs = FALSE)
 plot(p)
 add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
-  
+
+#----------------------pomocnicze-----------------------
+d1 <- "2010-01-01" 
+d2 <- "2010-03-01"
+ids <- c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY")
+
+#-----------------------koniec-------------------------
 
 #' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
 #' odpowiadają wybranym szeregom zaś krawędzie określają korelację miedzy nimi.
@@ -374,7 +388,7 @@ graph_correlation <- function(d1,
   df <- lapply(ids, function(id) {Dane(d1, d2, id)}) #lista ramek z poszczególnymi walutami 
   df <- Reduce(function(x, y) merge(x, y, by = 'date', all = TRUE), df) #łączenie w jedną ramkę  
   
-  if (!(base %in% c(colnames(df)[-1], "PLN"))) {
+  if (!(base %in% c(colnames(df)[-1], "PLN"))) {  #waluta odniesienia base musi być jedną w walut z bazy lub PLN
     stop("Nieprawidłowa waluta odniesienia base.")
   }
   
@@ -387,25 +401,36 @@ graph_correlation <- function(d1,
   }  
   
   #wyznaczenie korelacji
-  cor_matrix <- cor(df[,-1], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych baz 1 kolumny czyli daty
-  print(colnames(cor_matrix))
+  cor_matrix <- cor(df[,-1], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych bez 1 kolumny zawierającej daty
+  
+  #tytuły do grafiki
+  title_ending <- paste0("między walutami (waluta odniesienia: ", base,")")
+  subtitle <- paste("od", df$date[1], "do", df$date[length(df$date)])
   #------------------
   #heatmapa ggplot
-
+  
   cor_long <- melt(cor_matrix, value.name = "korelacja")
-
-  heatmap <- ggplot(data = cor_long, aes(x = Var1, y = Var2, fill = korelacja)) +
+  
+  heatmap <- ggplot(data = cor_long, 
+                    aes(x = Var1, 
+                        y = Var2, 
+                        fill = korelacja,
+                        alpha = abs(korelacja))) +
+    guides(alpha = "none") + 
     geom_tile() +
     scale_fill_viridis(option = "turbo", limits = c(-1, 1)) +
     theme_minimal() +
-    labs(title = paste("Macierz korelacji między walutami od", df$date[1], "do", df$date[length(df$date)]), 
+    labs(title = paste("Macierz korelacji", title_ending),
+         subtitle = subtitle,
          x = "Waluty", y = "Waluty", color = "waluta") +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1),
+          panel.grid.major = element_blank(),    # Usunięcie głównej siatki
+          panel.grid.minor = element_blank()) +  # Usunięcie drobnej siatki
     geom_text(aes(Var1, Var2, label = round(korelacja,2)), color = "black", size = 3)+
     scale_y_discrete(
       labels = paste(currency_name_from_id(colnames(cor_matrix)), "-", colnames(cor_matrix))  # Custom tick labels
     )
-
+  
   plot(heatmap)
   #--------------------------
   diag(cor_matrix) <- NA #Wartości na diagonali są równe 1 - nie są przydatne do wykresu
@@ -417,46 +442,57 @@ graph_correlation <- function(d1,
   #utworzenie grafu
   g <- graph_from_data_frame(cor_long, directed = FALSE)
   
-  E(g)$weight <- abs(E(g)$value)  # Grubość krawędzi będzie odpowiadała wartości korelacji
+  #atrybut weights jest wykorzystywany w wyznaczaniu rozkładu wierzchołków Fruchterman-Reingold
+  E(g)$weight <- E(g)$value + 1  
   
-  # Stworzenie palety kolorów turbo
-  colors <- turbo(100)
+  Korelacja <- E(g)$value
 
-  # Mapowanie wartości krawędzi na kolory
-  edge_colors <- colors[as.numeric(cut(c(E(g)$value, 1,-1), breaks = 100))]
-  
+  #pełne nazwy walut
+  full_currency_names <- currency_name_from_id(ids)
+  full_currency_names <- paste(ids, "-", full_currency_names)
 
-  
-  # ustawienie rozłożenia grafu i słupka kolorów na rysunku
-  par(mfcol = c(1, 2), mar = c(1, 1, 1, 2))
-  layout(matrix(c(1, 2), 1, 2, byrow = TRUE),
-         widths=c(15,2), heights=c(15, 15))
-  layout_fruchterman <- layout_with_fr(g)
-  
-  #rysowanie grafu
-  plot(g, 
-       layout = layout_fruchterman,
-       edge.width = E(g)$weight * 10,  # Skalowanie grubości krawędzi
-       edge.color = edge_colors, #kolor krawędzi
-       vertex.size = 20,  # Rozmiar wierzchołków
-       vertex.label.cex = 1,  # Rozmiar etykiet wierzchołków
-       vertex.color = "grey",  # Kolor wierzchołków
-       vertex.label.color = "black",
-       vertex.label.family = "TT Arial",
-       vertex.label.font = 2, #bold font 
-       main = paste("Graf korelacji między walutami od", df$date[1], "do", df$date[length(df$date)])
-  )  
+  #-----------------rysowanie grafu----------------
+  title <- paste("Graf korelacji między walutami od",
+                 df$date[1], "do", df$date[length(df$date)],
+                 "Waluta odniesienia:", base)
 
-  # Rysowanie słupka kolorów 
-  image(1, seq(-1, 1, length.out = 100), matrix(1:100,nrow=1), col = colors, axes = FALSE, ylab = "", xlab = "")
-  axis(2)
-  #resetowanie ustawień
-  par(mfrow = c(1, 1), mar = c(3, 3, 3, 3))
+  ggraph(g, layout = "fr") +  # "fr" rozkład wierzchołków Fruchterman-Reingold 
+    geom_edge_link(aes(edge_color = Korelacja, #rysowanie krawędzi
+                       edge_width = abs(Korelacja)/2,# Grubość krawędzi odpowiada wartości abs korelacji
+                       edge_alpha = abs(Korelacja)), #przezroczystośc zależy od korelacji
+                       position = "jitter") + 
+    scale_edge_color_viridis(option = "turbo", #skala kolorów dla krawędzi
+                        limits = c(-1, 1),
+                        guide =  "edge_colourbar") +
+    geom_node_point(aes(color = full_currency_names, #rysowanie wierzchołków
+                        stroke = 10)) +  
+    scale_color_manual(values = rep("lightgrey", length(full_currency_names)),
+                       name = "Waluty") + 
+    geom_node_text(aes(label = V(g)$name)) +  #etykiety wierzchołków
+    guides(edge_width = "none",
+           edge_alpha = "none",
+           color = guide_legend(position = "left")) + #ustawienia legendy
+    theme_void() +  # usuwa osie i tło
+    labs(
+      title = paste("Graf korelacji", title_ending),
+      subtitle = subtitle)
+
+
+  #----------------------------------
+  #wersja z kołem
+  # ggraph(g, layout = 'linear', circular = TRUE) + 
+  #   geom_edge_arc(aes(color = Korelacja, edge_width = E(g)$weight/8)) +
+  #   scale_edge_color_viridis(option = "turbo", 
+  #                            limits = c(-1, 1),
+  #                            guide =  "edge_colourbar") +
+  #   geom_node_text(aes(label = V(g)$name)) +
+  #   coord_fixed()
+  #----------------------------------
 }
 
 graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
-graph_correlation("2000-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
-graph_correlation("2000-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"), "EUR")
+graph_correlation("2012-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+graph_correlation("2012-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"), "EUR")
 
 
 graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"))

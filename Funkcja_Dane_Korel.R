@@ -63,7 +63,7 @@ Dane <- function(d1,
     warning(paste("Brak danych", id, "dla zadanego przedziału dat!"))
   }
   if (any(is.na(df))){#colSums(is.na(df))
-    warning(paste("Dane", id, "zawierają wartości NA!"))
+    warning(paste0("Dane ", id, " zawierają wartości NA! (n = ",sum(is.na(df)) ,")"))
   } 
   return(df)
 }
@@ -78,7 +78,7 @@ test_Dane <- function() {
   dane_eur_2 <- Dane("2020-01-01", "2020-01-10", "EUR","lag", 2)
 }
 
-test_Dane()
+#test_Dane()
 
 #exchange_rates_df <- import("data/exchange_rates.csv")
 #codes <- exchange_rates_df %>% distinct(currency_code)
@@ -146,5 +146,5 @@ test_correl <- function(){
 
 }
 
-test_correl()
+#test_correl()
 
