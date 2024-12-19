@@ -131,22 +131,23 @@ add_to_plot <- function(p,
   return(p)
 }
 
-d1 <- "2010-01-01"
-d2 <- "2015-03-01"
-data1 = Dane(d1, d2, "EUR")
-np <- new_plot(data1)
-plot(np)
-data2 = Dane(d1, d2, "USD", "lag", 30)
-p <- add_to_plot(np, data2)
-data3 = Dane(d1, d2, "AUD", "lag", 30)
-p <- add_to_plot(p, data3)
-plot(p)
-
+#------------------testowanie-------------------
+# d1 <- "2010-01-01"
+# d2 <- "2015-03-01"
+# data1 = Dane(d1, d2, "EUR")
+# np <- new_plot(data1)
+# plot(np)
+# data2 = Dane(d1, d2, "USD", "lag", 30)
+# p <- add_to_plot(np, data2)
+# data3 = Dane(d1, d2, "AUD", "lag", 30)
+# p <- add_to_plot(p, data3)
+# plot(p)
+#--------------------------------------
 interactive_plot <- function(gg_plot) {
   ggplotly(gg_plot)
 }
 
-interactive_plot(p)
+#interactive_plot(p)
 
 multi_plot <- function(d1,
                        d2,
@@ -155,21 +156,23 @@ multi_plot <- function(d1,
   
   data1 <- Dane(d1, d2, ids[1])
   p <- new_plot(data1, scaled)
-  
-  for (id in ids[2:length(ids)]) {
-    data <- Dane(d1, d2, id)
-    p <- add_to_plot(p, data, scaled)
+  if(length(ids) > 1) {
+    for (id in ids[2:length(ids)]) {
+      data <- Dane(d1, d2, id)
+      p <- add_to_plot(p, data, scaled)
+    }
   }
   return(p)
 }
-
-mp <- multi_plot("2008-02-01", 
-                 "2024-08-01", 
-                c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", 
-                "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
-plot(mp)
-
-interactive_plot(mp)
+#----------------------------test----------------------
+# mp <- multi_plot("2008-02-01", 
+#                  "2024-08-01", 
+#                 c("RON", "THB", "NZD", "SGD", "ISK", "TRY", "PHP", "MXN", 
+#                 "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+# plot(mp)
+# 
+# interactive_plot(mp)
+#--------------------------------------------------------------
 
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
@@ -198,17 +201,24 @@ histogram <- function(df) {
   return(h)
 }
 
-d1 <- "2002-01-01"
-d2 <- "2024-01-01"
-data1 = Dane(d1, d2, "TRY")
-h <- histogram(data1)
-plot(h)
-
-ids <- c("EUR", "USD", "XAU", "RUB", "CNY", "ILS")
-plot_list <- lapply(ids, function(id) {
-  histogram(Dane(d1,d2,id))})
-
-grid.arrange(grobs = plot_list, nrow = 2, ncol = 3)
+#---------------------------------------------
+# d1 <- "2002-01-01"
+# d2 <- "2024-01-01"
+# data1 = Dane(d1, d2, "TRY")
+# h <- histogram(data1)
+# plot(h)
+# 
+# ids <- c("EUR", "USD", "XAU", "RUB", "CNY", "ILS")
+multi_hist <- function(d1, d2, ids){
+  plot_list <- lapply(ids, function(id) {
+    histogram(Dane(d1,d2,id))})
+  grid.arrange(grobs = plot_list)
+}
+# plot_list <- lapply(ids, function(id) {
+#   histogram(Dane(d1,d2,id))})
+# 
+# grid.arrange(grobs = plot_list, nrow = 2, ncol = 3)
+#--------------------------------------------
 
 #' Wyznacza statystyki opisowe wektora, wartości NA są pomijane 
 #' Statystyki: minimum (min)
@@ -241,58 +251,60 @@ stats <- function(df) {
 
   return (s)
 }
+#------------------------------------------------------
+# (s <- stats(Dane("2000-01-01", "2020-01-01", "XAU")))
+# 
+# 
+# code_to_currency <- import("data/code_to_currency.csv")
+# 
+# # wyznaczanie statystyk dla każdej waluty
+# all_stats <- map(code_to_currency$Code, ~ {
+#   data <- Dane("2000-01-01", "2024-11-30", .x)
+#   stats(data)
+# })
+# 
+# names(all_stats) <- code_to_currency$Code
+# all_stats_df <- as.data.frame(do.call(cbind, all_stats))
+# View(all_stats_df)
+# 
+# # Ustalenie skalera do wykresów na podstawie wartości
+# conversion <- function(x) {
+#   if(x<0.6 & x>=0.08) {
+#     scaler = 10
+#   } else if(x<0.08 & x>=0.008){
+#     scaler = 100
+#   } else if(x<0.008 & x>=0.0008){
+#     scaler = 1000
+#   } else if(x<0.0008 & x>=0.00008){
+#     scaler = 10000
+#   } else{
+#     scaler = 1
+#   } 
+#   return(scaler)
+# }
+# 
+# median_val <- as.numeric(unlist(all_stats_df["median",]))
+# #Wyznaczenie wsp. skalowania na podstawie mediany 
+# scale_rates <- map(colnames(all_stats_df), ~ {
+#   data <- all_stats_df["median", .x]
+#   conversion(data)
+# })
+# names(scale_rates) <- colnames(all_stats_df)
+# scale_rates_df <- as.data.frame(do.call(cbind, scale_rates))
+# export(scale_rates_df, "data/scaling_rates.csv")
+# 
+# con_rate <- as.numeric(unlist(scale_rates))
+# scaled <- median_val * con_rate
+# 
+# barplot(scaled[-52], 
+#         names.arg = colnames(all_stats_df)[-52], 
+#         main = "Bar Plot of median", 
+#         xlab = "Currency Codes", 
+#         ylab = "Median", 
+#         col = "lightblue", 
+#         las = 2)
+#------------------------------------------------------------
 
-(s <- stats(Dane("2000-01-01", "2020-01-01", "XAU")))
-
-
-code_to_currency <- import("data/code_to_currency.csv")
-
-# wyznaczanie statystyk dla każdej waluty
-all_stats <- map(code_to_currency$Code, ~ {
-  data <- Dane("2000-01-01", "2024-11-30", .x)
-  stats(data)
-})
-
-names(all_stats) <- code_to_currency$Code
-all_stats_df <- as.data.frame(do.call(cbind, all_stats))
-View(all_stats_df)
-
-# Ustalenie skalera do wykresów na podstawie wartości
-conversion <- function(x) {
-  if(x<0.6 & x>=0.08) {
-    scaler = 10
-  } else if(x<0.08 & x>=0.008){
-    scaler = 100
-  } else if(x<0.008 & x>=0.0008){
-    scaler = 1000
-  } else if(x<0.0008 & x>=0.00008){
-    scaler = 10000
-  } else{
-    scaler = 1
-  } 
-  return(scaler)
-}
-
-median_val <- as.numeric(unlist(all_stats_df["median",]))
-#Wyznaczenie wsp. skalowania na podstawie mediany 
-scale_rates <- map(colnames(all_stats_df), ~ {
-  data <- all_stats_df["median", .x]
-  conversion(data)
-})
-names(scale_rates) <- colnames(all_stats_df)
-scale_rates_df <- as.data.frame(do.call(cbind, scale_rates))
-export(scale_rates_df, "data/scaling_rates.csv")
-
-con_rate <- as.numeric(unlist(scale_rates))
-scaled <- median_val * con_rate
-
-barplot(scaled[-52], 
-        names.arg = colnames(all_stats_df)[-52], 
-        main = "Bar Plot of median", 
-        xlab = "Currency Codes", 
-        ylab = "Median", 
-        col = "lightblue", 
-        las = 2)
 
 #' Rysuje wykres korelacji kroczącej 2 szeregów. Dla każdego dnia roboczego z 
 #' zadanego zakresu wyliczana jest korelacja szeregów na podstawie 'window_size' 
@@ -346,25 +358,20 @@ rolling_correl <- function(d1,
   return(df_cor)
 }
 
-window_size = 30
-d1 <- "2002-04-01"
-d2 <- "2015-03-01"
-c <- rolling_correl(d1, d2, "EUR", "USD", window_size)
-c2 <- rolling_correl(d1, d2, "XAU", "EUR", window_size)
+#------------------------------------------------------------
+# window_size = 30
+# d1 <- "2002-04-01"
+# d2 <- "2015-03-01"
+# c <- rolling_correl(d1, d2, "EUR", "USD", window_size)
+# c2 <- rolling_correl(d1, d2, "XAU", "EUR", window_size)
+# 
+# p <- new_plot(c, scaled = FALSE, 
+#               title = paste("Korelacja krocząca z ostatnich", window_size, "dni"),
+#               y_label = "wsp. korelacji",
+#               line_labs = FALSE)
+# plot(p)
+# add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
 
-p <- new_plot(c, scaled = FALSE, 
-              title = paste("Korelacja krocząca z ostatnich", window_size, "dni"),
-              y_label = "wsp. korelacji",
-              line_labs = FALSE)
-plot(p)
-add_to_plot(p, c2, scaled = FALSE, line_labs = FALSE)
-
-#----------------------pomocnicze-----------------------
-d1 <- "2010-01-01" 
-d2 <- "2010-03-01"
-ids <- c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY")
-
-#-----------------------koniec-------------------------
 
 #' Tworzy wykres grafu korelacji między wybranymi szeregami. Wierzchołki 
 #' odpowiadają wybranym szeregom zaś krawędzie określają korelację miedzy nimi.
@@ -383,28 +390,35 @@ graph_correlation <- function(d1,
                               d2,
                               ids,
                               base = "PLN"){
-
-  #pobieranie danych
-  df <- lapply(ids, function(id) {Dane(d1, d2, id)}) #lista ramek z poszczególnymi walutami 
-  df <- Reduce(function(x, y) merge(x, y, by = 'date', all = TRUE), df) #łączenie w jedną ramkę  
-  
-  if (!(base %in% c(colnames(df)[-1], "PLN"))) {  #waluta odniesienia base musi być jedną w walut z bazy lub PLN
+  if (!(base %in% code_to_currency$Code)) {  #waluta odniesienia base musi być jedną w walut z bazy danych lub PLN
     stop("Nieprawidłowa waluta odniesienia base.")
   }
+  #cody walut do pobrania z bazy danych/pliku
+  ids_db <- unique(c(ids, base))
+  ids_db <- setdiff(ids_db,"PLN") # wartości dla id "PLN" nie ma w bazie - trzeba je wyznaczyć
+
+  df <- lapply(ids_db, function(id) {Dane(d1, d2, id)}) #lista ramek z poszczególnymi walutami 
+  df <- Reduce(function(x, y) merge(x, y, by = 'date', all = TRUE), df) #łączenie w jedną ramkę  
+  
+  if ("PLN" %in% ids) {
+    df <- df %>% 
+      mutate(PLN = 1)
+  }
+
   
   if (base != "PLN") {
 
     df <- df %>% 
       mutate(across(-c(date, !!sym(base)), ~ . / !!sym(base))) %>% 
-      mutate(PLN = 1/!!sym(base)) %>% 
       select(-!!sym(base))
+    
   }  
   
   #wyznaczenie korelacji
   cor_matrix <- cor(df[,-1], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych bez 1 kolumny zawierającej daty
   
   #tytuły do grafiki
-  title_ending <- paste0("między walutami (waluta odniesienia: ", base,")")
+  title_ending <- paste0("między walutami (waluta odniesienia: ", base, " - ", currency_name_from_id(base), ")")
   subtitle <- paste("od", df$date[1], "do", df$date[length(df$date)])
   #------------------
   #heatmapa ggplot
@@ -415,20 +429,21 @@ graph_correlation <- function(d1,
                     aes(x = Var1, 
                         y = Var2, 
                         fill = korelacja,
-                        alpha = abs(korelacja))) +
+                        alpha = abs(korelacja)*0.5+0.5)) +
     guides(alpha = "none") + 
     geom_tile() +
     scale_fill_viridis(option = "turbo", limits = c(-1, 1)) +
+    scale_alpha_continuous(range = c(0.3, 1), limits = c(0,1)) +
     theme_minimal() +
     labs(title = paste("Macierz korelacji", title_ending),
          subtitle = subtitle,
-         x = "Waluty", y = "Waluty", color = "waluta") +
+         x = "Waluta", y = "Waluta") +
     theme(axis.text.x = element_text(angle = 90, hjust = 1),
           panel.grid.major = element_blank(),    # Usunięcie głównej siatki
           panel.grid.minor = element_blank()) +  # Usunięcie drobnej siatki
     geom_text(aes(Var1, Var2, label = round(korelacja,2)), color = "black", size = 3)+
     scale_y_discrete(
-      labels = paste(currency_name_from_id(colnames(cor_matrix)), "-", colnames(cor_matrix))  # Custom tick labels
+      labels = paste(currency_name_from_id(colnames(cor_matrix)), "-", colnames(cor_matrix))  # na osi y opisy kodów walut
     )
   
   plot(heatmap)
@@ -458,12 +473,15 @@ graph_correlation <- function(d1,
 
   ggraph(g, layout = "fr") +  # "fr" rozkład wierzchołków Fruchterman-Reingold 
     geom_edge_link(aes(edge_color = Korelacja, #rysowanie krawędzi
-                       edge_width = abs(Korelacja)/2,# Grubość krawędzi odpowiada wartości abs korelacji
-                       edge_alpha = abs(Korelacja)), #przezroczystośc zależy od korelacji
-                       position = "jitter") + 
+                       edge_width = abs(Korelacja),# Grubość krawędzi odpowiada wartości abs korelacji
+                       #edge_alpha = abs(Korelacja)), #przezroczystośc zależy od korelacji 
+                       ),
+                    position = "jitter") + 
     scale_edge_color_viridis(option = "turbo", #skala kolorów dla krawędzi
                         limits = c(-1, 1),
                         guide =  "edge_colourbar") +
+    scale_edge_width_continuous(range= c(0.5, 3), limits = c(0, 1)) + 
+    #scale_alpha_continuous(range = c(0.5, 1), limits = c(0,1)) + #skalowanie zakresu 0.5-1
     geom_node_point(aes(color = full_currency_names, #rysowanie wierzchołków
                         stroke = 10)) +  
     scale_color_manual(values = rep("lightgrey", length(full_currency_names)),
@@ -490,11 +508,12 @@ graph_correlation <- function(d1,
   #----------------------------------
 }
 
-graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
-graph_correlation("2012-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
-graph_correlation("2012-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"), "EUR")
+#-------------------------------------------------------
+# graph_correlation("2010-01-01", "2010-03-01", c("EUR", "USD", "XAU", "AUD"))
+# graph_correlation("2012-02-01", "2024-08-01", c("EUR", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"))
+# graph_correlation("2012-02-01", "2024-08-01", c("PLN", "AUD","XAU","CAD", "USD", "NOK", "SEK", "RON", "THB", "NZD", "SGD", "ISK", "BRL", "MYR", "IDR", "KRW", "CNY", "ILS", "INR", "CLP"), "EUR")
+# 
+# 
+# graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"), "XAU")
 
-
-graph_correlation("2010-01-01", "2010-03-01", c("USD", "NOK", "SEK"))
-d <- Dane("2010-01-01", "2010-03-01", "NOK")
-
+#---------------------------------------------------------
