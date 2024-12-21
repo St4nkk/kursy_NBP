@@ -175,48 +175,51 @@ multi_plot <- function(d1,
 #--------------------------------------------------------------
 
 plot_multiple_axes <- function(data_list) {
-  left_edge_plot <- 0.1
-  right_edge_plot <- 0.9
+  left_edge_plot <- 0.08
+  right_edge_plot <- 0.88
   colors <- c(
     "#1f77b4",  # Blue
     "#ff7f0e",  # Orange
     "#2ca02c",  # Green
     "#d62728",  # Red
-    "#9467bd",  # Purple
+    #"#9467bd",  # Purple
     "#8c564b",  # Brown
-    "#e377c2",  # Pink
-    "#7f7f7f"   # Gray
+    "#e377c2"  # Pink
+    #"#7f7f7f"   # Gray
   )
   fig <- plot_ly()
   id <- colnames(data_list[[1]])[2] #kod waluty
   fig <- fig %>% add_trace(
-                           x = ~data_list[[1]][,1], # data
-                           y = ~data_list[[1]][,2], # wartości
+                           x = data_list[[1]][,1], # data
+                           y = data_list[[1]][,2], # wartości
                            name = paste(id, "-", full_currency_name(id)), 
                            mode = "lines",
-                           type = "scatter")
+                           type = "scatter",
+                           line = list(color = colors[1]))
   y_axes <- list()
   
   for (i in 2:length(data_list)) {
    id <- colnames(data_list[[i]])[2] #kod waluty
    fig <- fig %>% add_trace(
-     x = ~data_list[[i]][,1],
-     y = ~data_list[[i]][,2],
+     x = data_list[[i]][,1],
+     y = data_list[[i]][,2],
      name = paste(id, "-", full_currency_name(id)),
      yaxis = paste0("y", i),
      mode = "lines",
-     type = "scatter")
+     type = "scatter",
+     line = list(color = colors[i]))
    
    y_axes[[paste0("yaxis", i)]] <- list(
      tickfont = list(color = colors[[i]]),
      titlefont = list(color = colors[[i]]),
+     tickformat = ".3",
      overlaying = "y",
      side = ifelse(i %% 2 == 0, "right", "left"),
      title = "")
    
    if (i != 2) { #tylko druga oś umiejscowiona przy prawej krawędzi wykresu
      y_axes[[paste0("yaxis", i)]][["anchor"]] <- "free"
-     y_axes[[paste0("yaxis", i)]][["position"]] <- ifelse(i %% 2 == 0, right_edge_plot+(i/2-1)*0.05, left_edge_plot-(i-1)/2*0.05)
+     y_axes[[paste0("yaxis", i)]][["position"]] <- ifelse(i %% 2 == 0, right_edge_plot+(i/2-1)*0.04, left_edge_plot-(i-1)/2*0.04)
    }
 
 
@@ -246,8 +249,9 @@ plot_multiple_axes <- function(data_list) {
   
 }
 
-
-test_data <- list(Dane(d1, d2, "EUR"), Dane(d1, d2, "XAU"),Dane(d1, d2, "USD"),Dane(d1, d2, "SEK"), Dane(d1, d2, "CHF"), Dane(d1, d2, "ISK"))
+d1 <- "2018-01-01"
+d2 <- "2023-01-01"
+test_data <- list(Dane(d1, d2, "EUR"), Dane(d1, d2, "XAU"),Dane(d1, d2, "IDR"),Dane(d1, d2, "SEK"), Dane(d1, d2, "CHF"), Dane(d1, d2, "ISK"))
 f <- plot_multiple_axes(test_data)
 
 f
