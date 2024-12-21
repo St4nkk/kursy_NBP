@@ -21,9 +21,9 @@ code_to_currency <- import("data/code_to_currency.csv")  #ramka do zamiany kodu 
 #' @param id kod waluty np."EUR"
 #' @return nazwa waluty
 #' @example 
-#' currency_name_from_id("EUR")
+#' full_currency_name("EUR")
 #' 
-currency_name_from_id <- function(ids){
+full_currency_name <- function(ids){
   
   currency_names <- code_to_currency$Currency[match(ids, code_to_currency$Code)]
   return(currency_names)
@@ -56,9 +56,9 @@ new_plot <- function(df,
   scaler <- ifelse(scaled, scaling_rates[,id], 1)
   label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
   
-  currency_name <- currency_name_from_id(id)
+  currency_name <- full_currency_name(id)
   if(length(currency_name) != 0){
-    label <- paste(label, "-", currency_name_from_id(id))
+    label <- paste(label, "-", full_currency_name(id))
   }
    
   df <- df %>%
@@ -111,9 +111,9 @@ add_to_plot <- function(p,
   scaler <- ifelse(scaled, scaling_rates[,id], 1)
   label <- ifelse(scaler == 1, id_with_desc, paste(scaler, id_with_desc))
   
-  currency_name <- currency_name_from_id(id)
+  currency_name <- full_currency_name(id)
   if(length(currency_name) != 0){
-    label <- paste(label, "-", currency_name_from_id(id))
+    label <- paste(label, "-", full_currency_name(id))
   }
   
   df <- df %>%
@@ -174,6 +174,146 @@ multi_plot <- function(d1,
 # interactive_plot(mp)
 #--------------------------------------------------------------
 
+plot_multiple_axes <- function(data_list) {
+  left_edge_plot <- 0.1
+  right_edge_plot <- 0.9
+  colors <- c(
+    "#1f77b4",  # Blue
+    "#ff7f0e",  # Orange
+    "#2ca02c",  # Green
+    "#d62728",  # Red
+    "#9467bd",  # Purple
+    "#8c564b",  # Brown
+    "#e377c2",  # Pink
+    "#7f7f7f"   # Gray
+  )
+  fig <- plot_ly()
+  id <- colnames(data_list[[1]])[2] #kod waluty
+  fig <- fig %>% add_trace(
+                           x = ~data_list[[1]][,1], # data
+                           y = ~data_list[[1]][,2], # wartości
+                           name = paste(id, "-", full_currency_name(id)), 
+                           mode = "lines",
+                           type = "scatter")
+  y_axes <- list()
+  
+  for (i in 2:length(data_list)) {
+   id <- colnames(data_list[[i]])[2] #kod waluty
+   fig <- fig %>% add_trace(
+     x = ~data_list[[i]][,1],
+     y = ~data_list[[i]][,2],
+     name = paste(id, "-", full_currency_name(id)),
+     yaxis = paste0("y", i),
+     mode = "lines",
+     type = "scatter")
+   
+   y_axes[[paste0("yaxis", i)]] <- list(
+     tickfont = list(color = colors[[i]]),
+     titlefont = list(color = colors[[i]]),
+     overlaying = "y",
+     side = ifelse(i %% 2 == 0, "right", "left"),
+     title = "")
+   
+   if (i != 2) { #tylko druga oś umiejscowiona przy prawej krawędzi wykresu
+     y_axes[[paste0("yaxis", i)]][["anchor"]] <- "free"
+     y_axes[[paste0("yaxis", i)]][["position"]] <- ifelse(i %% 2 == 0, right_edge_plot+(i/2-1)*0.05, left_edge_plot-(i-1)/2*0.05)
+   }
+
+
+  }
+  args <- c(list(p = fig, 
+               title = "Wykres kursów",
+               xaxis = list(title = '', domain = c(left_edge_plot, right_edge_plot)),
+               yaxis = list(title="",#"yaxis title",
+                            tickfont = list(color = "#1f77b4"),
+                            titlefont = list(color = "#1f77b4"))),
+               y_axes)
+
+
+  fig <- do.call(layout, args)%>%
+    layout(plot_bgcolor='#e5ecf6',
+           xaxis = list(
+             zerolinecolor = '#ffff',
+             zerolinewidth = 2,
+             gridcolor = 'ffff'),
+           yaxis = list(
+             zerolinecolor = '#ffff',
+             zerolinewidth = 2,
+             gridcolor = 'ffff')
+    )
+  
+  fig
+  
+}
+
+
+test_data <- list(Dane(d1, d2, "EUR"), Dane(d1, d2, "XAU"),Dane(d1, d2, "USD"),Dane(d1, d2, "SEK"), Dane(d1, d2, "CHF"), Dane(d1, d2, "ISK"))
+f <- plot_multiple_axes(test_data)
+
+f
+
+
+#--------------------
+library(plotly)
+plt_multiple_axes <- function(d) {
+  colors <- c(
+    "#1f77b4",  # Blue
+    "#ff7f0e",  # Orange
+    "#2ca02c",  # Green
+    "#d62728",  # Red
+    "#9467bd",  # Purple
+    "#8c564b",  # Brown
+    "#e377c2",  # Pink
+    "#7f7f7f"   # Gray
+  )
+  id <- colnames(d[[1]])[2] #kod waluty
+  
+  fig <- plot_ly()
+  fig <- fig %>% add_trace(x = d[[1]][,1], y = d[[1]][,2], name = paste(id, "-", full_currency_name(id)), mode = "lines", type = "scatter")
+  y_axes <- list()
+  for (i in 2:length(d)) {
+    id <- colnames(d[[i]])[2] #kod waluty
+    fig <- fig %>% add_trace(x = d[[i]][,1], y = d[[i]][,2], name = paste(id, "-", full_currency_name(id)), mode = "lines", yaxis = paste0("y", i), type = "scatter")
+    
+    y_axes[[paste0("yaxis", i)]] <- list(
+      tickfont = list(color = colors[[i]]),
+      titlefont = list(color = colors[[i]]),
+      overlaying = "y",
+      side = ifelse(i %% 2 == 0, "right", "left"))
+    if (i!=2) {
+      y_axes[[paste0("yaxis", i)]][["anchor"]] <- "free"
+      y_axes[[paste0("yaxis", i)]][["position"]] <- ifelse(i %% 2 == 0, 0.9+(i/2-1)*0.05, 0.1-(i-1)/2*0.05)
+    }
+    
+    
+  }
+  
+  args <- c(list(p = fig,
+                 title = "Wykres walut", 
+                 xaxis = list(title = '', domain = c(0.1, 0.9)),
+                 yaxis = list(
+                   tickfont = list(color = "#1f77b4"),
+                   titlefont = list(color = "#1f77b4"))), y_axes)
+  
+  fig <- do.call(layout, args)   %>%
+    layout(plot_bgcolor='#e5ecf6',
+           xaxis = list(
+             zerolinecolor = '#ffff',
+             zerolinewidth = 2,
+             gridcolor = 'ffff'),
+           yaxis = list(
+             zerolinecolor = '#ffff',
+             zerolinewidth = 2,
+             gridcolor = 'ffff')
+    )
+  
+  fig
+}
+d1 <- "2022-01-01"
+d2 <- "2023-01-01"
+p <- list(Dane(d1, d2, "EUR"),Dane(d1, d2, "XAU"),Dane(d1, d2, "USD"), Dane(d1, d2, "CAD"), Dane(d1, d2, "NOK"), Dane(d1, d2, "IDR"), Dane(d1, d2, "CLP"),Dane(d1, d2, "CZK"))
+plt_multiple_axes(p)
+
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
 #' @param df ramka danych zawierająca kolumnę rate
@@ -192,7 +332,7 @@ histogram <- function(df) {
   h <- ggplot(df, aes(x = !!sym(colnames(df)[2]))) + 
     geom_histogram(bins = bin_num, fill = "blue", color = "black", alpha = 0.7) +
     theme_bw() +
-    labs(title = paste("Histogram", colnames(df)[2], "-" , currency_name_from_id(id), 
+    labs(title = paste("Histogram", colnames(df)[2], "-" , full_currency_name(id), 
                        "\nod", df$date[1], "do", df$date[length(df$date)]), 
          x = "Kurs [PLN]", y = "Liczba wystąpień") + 
     scale_x_continuous(
@@ -418,7 +558,7 @@ graph_correlation <- function(d1,
   cor_matrix <- cor(df[,-1], use = "complete.obs") #wyznaczenie maczierzy korelacji dla wszystkich zmiennych bez 1 kolumny zawierającej daty
   
   #tytuły do grafiki
-  title_ending <- paste0("między walutami (waluta odniesienia: ", base, " - ", currency_name_from_id(base), ")")
+  title_ending <- paste0("między walutami (waluta odniesienia: ", base, " - ", full_currency_name(base), ")")
   subtitle <- paste("od", df$date[1], "do", df$date[length(df$date)])
   #------------------
   #heatmapa ggplot
@@ -443,10 +583,10 @@ graph_correlation <- function(d1,
           panel.grid.minor = element_blank()) +  # Usunięcie drobnej siatki
     geom_text(aes(Var1, Var2, label = round(korelacja,2)), color = "black", size = 3)+
     scale_y_discrete(
-      labels = paste(currency_name_from_id(colnames(cor_matrix)), "-", colnames(cor_matrix))  # na osi y opisy kodów walut
+      labels = paste(full_currency_name(colnames(cor_matrix)), "-", colnames(cor_matrix))  # na osi y opisy kodów walut
     )
   
-  plot(heatmap)
+  #plot(heatmap)
   #--------------------------
   diag(cor_matrix) <- NA #Wartości na diagonali są równe 1 - nie są przydatne do wykresu
   cor_matrix[lower.tri(cor_matrix)] <- NA #wartości poniżej diagonali są takie same jak powyżej diagonali - są nadmiarowe
@@ -463,7 +603,7 @@ graph_correlation <- function(d1,
   Korelacja <- E(g)$value
 
   #pełne nazwy walut
-  full_currency_names <- currency_name_from_id(ids)
+  full_currency_names <- full_currency_name(ids)
   full_currency_names <- paste(ids, "-", full_currency_names)
 
   #-----------------rysowanie grafu----------------
@@ -471,12 +611,11 @@ graph_correlation <- function(d1,
                  df$date[1], "do", df$date[length(df$date)],
                  "Waluta odniesienia:", base)
 
-  ggraph(g, layout = "fr") +  # "fr" rozkład wierzchołków Fruchterman-Reingold 
+  graph_plot <- ggraph(g, layout = "fr") +  # "fr" rozkład wierzchołków Fruchterman-Reingold 
     geom_edge_link(aes(edge_color = Korelacja, #rysowanie krawędzi
                        edge_width = abs(Korelacja),# Grubość krawędzi odpowiada wartości abs korelacji
                        #edge_alpha = abs(Korelacja)), #przezroczystośc zależy od korelacji 
-                       ),
-                    position = "jitter") + 
+                       )) + 
     scale_edge_color_viridis(option = "turbo", #skala kolorów dla krawędzi
                         limits = c(-1, 1),
                         guide =  "edge_colourbar") +
@@ -495,6 +634,7 @@ graph_correlation <- function(d1,
       title = paste("Graf korelacji", title_ending),
       subtitle = subtitle)
 
+  return(list("graph" = graph_plot, "heatmap" = heatmap))
 
   #----------------------------------
   #wersja z kołem

@@ -1,19 +1,23 @@
 # Load the `shiny` package (install it in the R terminal if you haven't already)
 pacman::p_load(shiny,
+               shinythemes,
+               bslib,
                lubridate)
 
 source("Wykresy.R")
 
-#
+# wektor z którego wybierane są waluty do wizualizacji
 currencies_from_db <- code_to_currency %>% filter( Code != "PLN")
 currency_choices <- paste(currencies_from_db$Code, "-", currencies_from_db$Currency)
 currency_choices <- setNames(currencies_from_db$Code, currency_choices)
 
+# zakres dat dostępnych do wyboru przez użytkownika 
 gold_and_exchange_rates <- import("data/gold_and_exchange_rates.csv")
 min_date <- min(gold_and_exchange_rates$date)
-max_date <- Sys.Date()
-# Define a new `ui` variable. This variable should be assigned a `fluidPage()`
-# layout. The `fluidPage()` layout should be passed the following:
+max_date <- max(gold_and_exchange_rates$date)
+dates_disabled <- setdiff(seq.Date(from = min_date, to = max_date ,by = "day"), gold_and_exchange_rates$date )
+
+# Elementy UI
 page_front <- tabPanel(
   "Start",
   titlePanel("Projekt NBP"),
@@ -34,55 +38,84 @@ page_front <- tabPanel(
   
 )
 page_time_plot <- tabPanel(
-  "wykresy czasowe",
-  titlePanel("Wykresy czasowe"),
-  sidebarLayout(
-    sidebarPanel(
-
+  "Wykresy",
+  page_sidebar(
+    title = "Wykresy",
+    theme = shinytheme("cosmo"),
+    sidebar = sidebar(
+      title = "Parametry wykresów",
       dateInput(inputId = "d1",
                 label = "Data początkowa",
                 min = min_date,
                 max = max_date,
-                value = Sys.Date() %m-% months(1)), #miesiąc przed dzisiejszą datą
+                datesdisabled = dates_disabled,
+                value = max_date %m-% months(1)), #miesiąc przed ostatnią dostępną datą
+      
       dateInput(inputId = "d2",
                 label = "Data końcowa",
                 min = min_date,
                 max = max_date,
-                value = Sys.Date()),
+                datesdisabled = dates_disabled,
+                value = max_date),
       
       checkboxGroupInput(inputId = "waluty",
                          label = "Waluta",
                          choices = currency_choices,
                          selected = "EUR")
     ),
-    mainPanel(
-      plotOutput("static_plot")
-    )
+    tabsetPanel(type = "tabs",
+                  tabPanel("Wykres czasowy", plotOutput("time_plot")),
+                  tabPanel("Histogram", plotOutput("hist_plot")),
+                  tabPanel("Korelacja", plotOutput("heatmap"),
+                           plotOutput("graph_corel"))
+                           
+      )
+      
+    
   )
 )
 
-page_histogram <- tabPanel(
-  "Histogramy"
+page_analysis <- tabPanel(
+  "Analiza",
+  theme = shinytheme("cosmo")
 )
-page_correlation <- tabPanel(
-  "Korelacje"
+page_forecast <- tabPanel(
+  "Prognoza",
+  theme = shinytheme("cosmo")
 )
 
 ui <- navbarPage(
+  
   "Projekt NBP",
+  theme = shinytheme("cosmo"),
   page_front,
   page_time_plot,
-  page_histogram,
-  page_correlation
-)
+  page_analysis,
+  page_forecast
+    )
+
 
 
 # This defines a server that doesn't do anything yet, but is needed to run the app.
+
 server <- function(input, output) {
-  output$static_plot <- renderPlot({
+  output$hist_plot <- renderPlot({
+    multi_hist(input$d1, input$d2, input$waluty)
+  })
+  
+  output$time_plot <- renderPlot({
 
     multi_plot(input$d1, input$d2, input$waluty)
   })
+  
+  output$heatmap <- renderPlot({
+    graph_correlation(input$d1, input$d2, input$waluty)[["heatmap"]] 
+  })
+  
+  output$graph_corel <- renderPlot({
+    graph_correlation(input$d1, input$d2, input$waluty)[["graph"]]
+  })
+
 }
 
 # Create a new `shinyApp()` using the above ui and server
