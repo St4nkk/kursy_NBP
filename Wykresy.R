@@ -174,7 +174,24 @@ multi_plot <- function(d1,
 # interactive_plot(mp)
 #--------------------------------------------------------------
 
+
+#' zwraca interaktywny wykres z wieloma osiami y po jednej dla jażdej waluty
+#' Maksymalna liczba walut to 6.
+#'  
+#' @param data_list lista ramek danych, każda o 2 kolumnach (w pierwszej data w drugiej dane)
+#' @return obiekt plotly zawierający wykres danych wejściowych
+#'
+#' @example 
+#' d1 <- "2018-01-01"
+#' d2 <- "2023-01-01"
+#' test_data <- list(Dane(d1, d2, "EUR"), Dane(d1, d2, "XAU"),Dane(d1, d2, "SEK"), Dane(d1, d2, "CHF"), Dane(d1, d2, "ISK"))
+#' plot_multiple_axes(test_data)
+#'       
 plot_multiple_axes <- function(data_list) {
+  if (length(data_list) > 6) {
+    stop("Maksymalna liczba walut wynosi 6.")
+  }
+  
   left_edge_plot <- 0.08
   right_edge_plot <- 0.88
   colors <- c(
@@ -252,71 +269,12 @@ plot_multiple_axes <- function(data_list) {
 d1 <- "2018-01-01"
 d2 <- "2023-01-01"
 test_data <- list(Dane(d1, d2, "EUR"), Dane(d1, d2, "XAU"),Dane(d1, d2, "IDR"),Dane(d1, d2, "SEK"), Dane(d1, d2, "CHF"), Dane(d1, d2, "ISK"))
-f <- plot_multiple_axes(test_data)
+fplot_multiple_axes(test_data)
 
 f
 
 
-#--------------------
-library(plotly)
-plt_multiple_axes <- function(d) {
-  colors <- c(
-    "#1f77b4",  # Blue
-    "#ff7f0e",  # Orange
-    "#2ca02c",  # Green
-    "#d62728",  # Red
-    "#9467bd",  # Purple
-    "#8c564b",  # Brown
-    "#e377c2",  # Pink
-    "#7f7f7f"   # Gray
-  )
-  id <- colnames(d[[1]])[2] #kod waluty
-  
-  fig <- plot_ly()
-  fig <- fig %>% add_trace(x = d[[1]][,1], y = d[[1]][,2], name = paste(id, "-", full_currency_name(id)), mode = "lines", type = "scatter")
-  y_axes <- list()
-  for (i in 2:length(d)) {
-    id <- colnames(d[[i]])[2] #kod waluty
-    fig <- fig %>% add_trace(x = d[[i]][,1], y = d[[i]][,2], name = paste(id, "-", full_currency_name(id)), mode = "lines", yaxis = paste0("y", i), type = "scatter")
-    
-    y_axes[[paste0("yaxis", i)]] <- list(
-      tickfont = list(color = colors[[i]]),
-      titlefont = list(color = colors[[i]]),
-      overlaying = "y",
-      side = ifelse(i %% 2 == 0, "right", "left"))
-    if (i!=2) {
-      y_axes[[paste0("yaxis", i)]][["anchor"]] <- "free"
-      y_axes[[paste0("yaxis", i)]][["position"]] <- ifelse(i %% 2 == 0, 0.9+(i/2-1)*0.05, 0.1-(i-1)/2*0.05)
-    }
-    
-    
-  }
-  
-  args <- c(list(p = fig,
-                 title = "Wykres walut", 
-                 xaxis = list(title = '', domain = c(0.1, 0.9)),
-                 yaxis = list(
-                   tickfont = list(color = "#1f77b4"),
-                   titlefont = list(color = "#1f77b4"))), y_axes)
-  
-  fig <- do.call(layout, args)   %>%
-    layout(plot_bgcolor='#e5ecf6',
-           xaxis = list(
-             zerolinecolor = '#ffff',
-             zerolinewidth = 2,
-             gridcolor = 'ffff'),
-           yaxis = list(
-             zerolinecolor = '#ffff',
-             zerolinewidth = 2,
-             gridcolor = 'ffff')
-    )
-  
-  fig
-}
-d1 <- "2022-01-01"
-d2 <- "2023-01-01"
-p <- list(Dane(d1, d2, "EUR"),Dane(d1, d2, "XAU"),Dane(d1, d2, "USD"), Dane(d1, d2, "CAD"), Dane(d1, d2, "NOK"), Dane(d1, d2, "IDR"), Dane(d1, d2, "CLP"),Dane(d1, d2, "CZK"))
-plt_multiple_axes(p)
+
 
 #' Tworzy obiekt gg wyznaczający histogram danych
 #' 
